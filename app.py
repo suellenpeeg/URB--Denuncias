@@ -239,7 +239,7 @@ Status: {record['status']}
     pdf.multi_cell(0, 6, " " * 100, 1, 'L', 0) 
     pdf.ln(1)
 
-    # Retorna o PDF como bytes (sem encode)
+    # Retorna o PDF como bytes (fpdf2 retorna bytearray, que será convertido na função chamadora)
     pdf_bytes = pdf.output(dest="S") 
     return pdf_bytes
     
@@ -288,11 +288,16 @@ def handle_form_submit(external_id, created_at, origem, tipo, rua, numero, bairr
     try:
         pdf_bytes = create_pdf_from_record(record)
         
-        # SÓ DEFINE O ESTADO SE A GERAÇÃO FOR BEM-SUCEDIDA
-        if pdf_bytes and isinstance(pdf_bytes, (bytes, bytearray)):
+        # CORREÇÃO CRÍTICA: Forçar a conversão para o tipo 'bytes' para evitar StreamlitAPIException
+        if isinstance(pdf_bytes, bytearray):
+            pdf_bytes = bytes(pdf_bytes) 
+            
+        # SÓ DEFINE O ESTADO SE A GERAÇÃO FOR BEM-SUCEDIDA e TIPO CORRETO
+        if pdf_bytes and isinstance(pdf_bytes, bytes): 
             st.session_state['download_pdf_data'] = pdf_bytes
             st.session_state['download_pdf_id'] = external_id
-            # Limpa o estado anterior de edição, se houver
+            
+            # Limpa o estado anterior de edição
             if 'last_edited_pdf' in st.session_state:
                  del st.session_state['last_edited_pdf']
         else:
@@ -436,7 +441,6 @@ if page == 'Registro da denuncia':
         )
 
     # Botão de PDF persistente (Lendo do novo estado de sessão)
-    # Verifica tanto o download_pdf_data (novo registro) quanto o last_edited_pdf (edição)
     if 'download_pdf_data' in st.session_state and 'download_pdf_id' in st.session_state:
         
         pdf_data = st.session_state['download_pdf_data']
@@ -537,6 +541,9 @@ if page == 'Historico':
         if 'download_pdf_data' in st.session_state:
              del st.session_state['download_pdf_data']
              del st.session_state['download_pdf_id']
+        # Limpa o estado de download pós-edição anterior
+        if 'last_edited_pdf' in st.session_state:
+             del st.session_state['last_edited_pdf']
 
 
     if 'edit_mode_id' in st.session_state:
@@ -601,12 +608,21 @@ if page == 'Historico':
                     
                     try:
                         pdf_bytes = create_pdf_from_record(updated_record)
-                        if pdf_bytes and isinstance(pdf_bytes, (bytes, bytearray)):
+                        
+                        # CORREÇÃO CRÍTICA: Forçar a conversão para o tipo 'bytes'
+                        if isinstance(pdf_bytes, bytearray):
+                            pdf_bytes = bytes(pdf_bytes) 
+
+                        if pdf_bytes and isinstance(pdf_bytes, bytes): 
                             # Define um novo estado de sessão para o download pós-edição
                             st.session_state['last_edited_pdf'] = {
                                 'data': pdf_bytes,
                                 'external_id': updated_record['external_id']
                             }
+                            # Limpa os estados de download de novo registro, se houver
+                            if 'download_pdf_data' in st.session_state:
+                                del st.session_state['download_pdf_data']
+                                del st.session_state['download_pdf_id']
                         else:
                             st.warning("⚠️ O registro foi salvo, mas o PDF atualizado não pôde ser gerado.")
                     except Exception as e:
