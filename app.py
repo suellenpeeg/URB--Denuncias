@@ -279,7 +279,7 @@ Status: {record['status']}
                     y = 10 # Volta para o topo
 
     # Retorna o PDF como bytes
-   try:
+    try:
         # pdf.output(dest="S") retorna bytes ou bytearray (ambos aceitos)
         pdf_bytes = pdf.output(dest="S") 
     except Exception as e:
@@ -568,6 +568,7 @@ if page == 'Historico':
 # ---------------------- Footer ----------------------
 st.markdown('---')
 st.caption('Aplicação URB Fiscalização - Versão Finalizada.')
+
 
 
 
