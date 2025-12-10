@@ -8,7 +8,7 @@ from datetime import datetime
 import hashlib
 from io import BytesIO
 
-# Import FPDF (Substituindo ReportLab)
+# Import FPDF (Substituindo ReportLab e garantindo estabilidade)
 from fpdf import FPDF 
 
 # Configuração da Página
@@ -107,7 +107,7 @@ def verify_user(username, password):
     return None
 
 def generate_external_id():
-    """Gera ID baseado no último ID sequencial (MAX ID) para evitar duplicidade."""
+    """Gera ID baseado no último ID sequencial (MAX ID)."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('SELECT MAX(id) FROM denuncias')
@@ -132,10 +132,8 @@ def fetch_all_denuncias():
     df = pd.read_sql_query('SELECT * FROM denuncias ORDER BY id DESC', conn)
     conn.close()
     if not df.empty:
-        # Tratamento seguro de JSON
         def safe_json_load(x):
             try:
-                # O problema era que o JSON às vezes era salvo como string pura '[]' ou 'null'
                 return json.loads(x) if x and isinstance(x, str) and x.strip().startswith('[') else []
             except:
                 return []
@@ -166,34 +164,19 @@ def update_denuncia_full(id_, row):
     conn.close()
 
 
-# ---------------------- Geração de PDF com FPDF ----------------------
+# ---------------------- Geração de PDF com FPDF (SOMENTE TEXTO) ----------------------
 class PDF(FPDF):
     def header(self):
-        # Título da página (ajustado para FPDF)
         self.set_font('Arial', 'B', 15)
         self.cell(0, 10, 'URB Fiscalização - Ordem de Serviço', 0, 1, 'C')
 
     def footer(self):
-        # Número da página
-        self.set_y(-15)
-        self.set_font('Arial', 'I', 8)
-        self.cell(0, 10, 'Página %s' % self.page_no(), 0, 0, 'C')
-
-# ---------------------- Geração de PDF com FPDF (CORRIGIDO) ----------------------
-class PDF(FPDF):
-    def header(self):
-        # Título da página (ajustado para FPDF)
-        self.set_font('Arial', 'B', 15)
-        self.cell(0, 10, 'URB Fiscalização - Ordem de Serviço', 0, 1, 'C')
-
-    def footer(self):
-        # Número da página
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
         self.cell(0, 10, 'Página %s' % self.page_no(), 0, 0, 'C')
 
 def create_pdf_from_record(record):
-    """Gera o PDF usando FPDF2 (Cross-plataforma e seguro para deploy)"""
+    """Gera o PDF usando FPDF2, incluindo apenas dados textuais para estabilidade."""
     
     pdf = PDF()
     pdf.add_page()
@@ -238,58 +221,46 @@ Status: {record['status']}
     pdf.multi_cell(0, 6, " " * 100, 1, 'L', 0) 
     pdf.ln(1)
 
-
-    # ---------------- FOTOS (CORREÇÃO DE ERRO) ----------------
-    fotos = record.get("fotos", [])
-    if fotos:
-        pdf.add_page()
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, "FOTOS ANEXADAS", ln=True)
-        pdf.ln(4)
-
-        x_start = 10
-        y_start = pdf.get_y()
-        max_w = 80
-        max_h = 70
-        x, y = x_start, y_start
-        
-        for foto in fotos:
-            abs_path = os.path.abspath(foto)
-            
-            # --- BLOC DE TRATAMENTO DE ERRO CRÍTICO ---
-            if os.path.exists(abs_path):
-                try:
-                    # Tenta adicionar a imagem
-                    pdf.image(abs_path, x, y, w=max_w)
-                    x += max_w + 10 # Move para a direita
-                except Exception as e:
-                    # Se falhar, registra um texto de erro no lugar da imagem e continua
-                    pdf.set_font("Arial", "B", 8)
-                    pdf.set_xy(x, y) # Posiciona o cursor para o texto de erro
-                    pdf.multi_cell(max_w, max_h/2, "ERRO: Imagem falhou ao carregar", 1, 'C')
-                    x += max_w + 10
-                    # Não trave o PDF, apenas avisa e continua para a próxima imagem.
-                    
-            if x > 150: # Se for a segunda imagem na linha
-                x = x_start
-                y += max_h + 10 # Desce uma linha
-
-                if y > 250: # Se chegou perto do rodapé
-                    pdf.add_page()
-                    y = 10 # Volta para o topo
-
-    # Retorna o PDF como bytes
-    try:
-        # pdf.output(dest="S") retorna bytes ou bytearray (ambos aceitos)
-        pdf_bytes = pdf.output(dest="S") 
-    except Exception as e:
-        # Se o output falhar (erro grave no fpdf2), retorna um PDF vazio
-        # para que o st.download_button não trave.
-        st.error(f"Erro fatal ao finalizar o PDF: {e}")
-        # Retorna uma string de bytes vazia (b"")
-        pdf_bytes = b"" 
-
+    # Retorna o PDF como bytes (sem encode, para evitar 'bytearray' object has no attribute 'encode')
+    pdf_bytes = pdf.output(dest="S") 
     return pdf_bytes
+    
+# ---------------------- FIM DA GERAÇÃO DE PDF ----------------------
+
+
+# ---------------------- Init ----------------------
+init_db()
+if 'user' not in st.session_state:
+    st.session_state['user'] = None
+
+# ---------------------- Layout & CSS ----------------------
+st.markdown("""
+<style>
+header {visibility: hidden}
+footer {visibility: hidden}
+
+/* Fundo da Sidebar */
+.sidebar .sidebar-content {
+    background: linear-gradient(#0b3b2e, #2f6f4f);
+}
+
+/* Estilo do Título Principal */
+.h1-urb {font-weight:800; color: #003300;}
+
+/* Estiliza o título do APP na BARRA LATERAL (para corrigir a cor) */
+[data-testid="stSidebar"] .st-emotion-cache-p5m9y8 p {
+    color: #DAA520; 
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+col1, col2 = st.columns([1,4])
+with col2:
+    st.markdown("<h1 class='h1-urb'>URB <span style='color:#DAA520'>Fiscalização - Denúncias</span></h1>", unsafe_allow_html=True)
+    st.write("")
 
 # ---------------------- Authentication ----------------------
 if st.session_state['user'] is None:
@@ -306,10 +277,13 @@ if st.session_state['user'] is None:
             st.rerun()
         else:
             st.error('Usuário ou senha incorretos')
-    st.info("Administrador: usuário 'Suellen Nascimento'/ ")
+    st.info("Administrador: usuário 'admin' / senha 'fisc2023'")
     st.stop()
 
 user = st.session_state['user']
+# Adiciona um título customizado e colorido no sidebar
+st.sidebar.markdown("<h3 style='color:#DAA520; font-weight:bold;'>URB Fiscalização</h3>", unsafe_allow_html=True)
+st.sidebar.markdown("---") 
 st.sidebar.markdown(f"**Usuário:** {user['full_name']} ({user['username']})")
 if user.get('is_admin'):
     st.sidebar.success('Administrador')
@@ -372,11 +346,11 @@ if page == 'Registro da denuncia':
         lon = c4.text_input('Longitude')
         
         if lat and lon:
-            # Atenção: Link de mapa com formato corrigido
             maps_link = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
             st.markdown(f"[Abrir localização no Google Maps]({maps_link})")
             
         descricao = st.text_area('Descrição da Ordem de Serviço', height=150)
+        # O UPLOADER AINDA ESTÁ AQUI, MAS AS FOTOS NÃO SÃO INCLUÍDAS NO PDF PARA ESTABILIDADE
         fotos = st.file_uploader('Anexar fotos (várias)', type=['png','jpg','jpeg'], accept_multiple_files=True)
         quem_recebeu = st.selectbox('Quem recebeu a denúncia', OPCOES_FISCAIS)
 
@@ -414,26 +388,39 @@ if page == 'Registro da denuncia':
             st.session_state['last_pdf_record'] = record
             st.success('Denúncia salva com sucesso!')
 
-    # Botão de PDF persistente
+    # Botão de PDF persistente (COM TRATAMENTO DE ERRO FINAL)
     if 'last_pdf_record' in st.session_state:
         st.markdown("---")
         st.subheader("Documento Gerado")
         
         rec = st.session_state['last_pdf_record']
-        pdf_bytes = create_pdf_from_record(rec)
+        pdf_bytes = None  # Inicializa como None para controle de erro
         
-        col_down, col_clear = st.columns([1,1])
-        with col_down:
-            st.download_button(
-                label='📥 Baixar Ordem de Serviço (PDF)', 
-                data=pdf_bytes, 
-                file_name=f"OS_{rec['external_id'].replace('/', '_')}.pdf", 
-                mime='application/pdf'
-            )
-        with col_clear:
-            if st.button("Limpar / Novo Registro"):
-                del st.session_state['last_pdf_record']
-                st.rerun()
+        try:
+            # Tenta gerar o PDF. A função create_pdf_from_record agora tem que retornar bytes ou b""
+            pdf_bytes = create_pdf_from_record(rec)
+        except Exception as e:
+            # Captura qualquer exceção não tratada na função de PDF
+            st.error(f"⚠️ Erro grave na geração do PDF: {e}")
+            pdf_bytes = None
+
+        # Renderiza o botão SOMENTE se os bytes forem válidos
+        if pdf_bytes and isinstance(pdf_bytes, (bytes, bytearray)):
+            col_down, col_clear = st.columns([1,1])
+            with col_down:
+                st.download_button(
+                    label='📥 Baixar Ordem de Serviço (PDF)', 
+                    data=pdf_bytes, 
+                    file_name=f"OS_{rec['external_id'].replace('/', '_')}.pdf", 
+                    mime='application/pdf'
+                )
+            with col_clear:
+                if st.button("Limpar / Novo Registro"):
+                    del st.session_state['last_pdf_record']
+                    st.rerun()
+        else:
+            st.warning("⚠️ O PDF não pôde ser gerado. Verifique o console de logs para detalhes do erro.")
+
 
 # ---------------------- Page: Historico ----------------------
 if page == 'Historico':
@@ -516,7 +503,6 @@ if page == 'Historico':
             st.info(f"Editando ID: {rec['external_id']}")
             
             with st.form('edit_form'):
-                # Uso de safe_index para evitar travamento
                 idx_origem = safe_index(OPCOES_ORIGEM, rec['origem'])
                 idx_tipo = safe_index(OPCOES_TIPO, rec['tipo'])
                 idx_bairro = safe_index(OPCOES_BAIRROS, rec['bairro'])
@@ -568,7 +554,3 @@ if page == 'Historico':
 # ---------------------- Footer ----------------------
 st.markdown('---')
 st.caption('Aplicação URB Fiscalização - Versão Finalizada.')
-
-
-
-
