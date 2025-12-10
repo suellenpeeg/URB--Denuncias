@@ -1,5 +1,4 @@
 streamlit
 pandas
-reportlab (for PDF generation)
+fpdf2
 pillow
-JSON
