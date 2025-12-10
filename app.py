@@ -279,13 +279,15 @@ Status: {record['status']}
                     y = 10 # Volta para o topo
 
     # Retorna o PDF como bytes
-    # O comando output(dest="S") agora tem proteção contra falhas de imagem
-    try:
-        pdf_bytes = pdf.output(dest="S")
+   try:
+        # pdf.output(dest="S") retorna bytes ou bytearray (ambos aceitos)
+        pdf_bytes = pdf.output(dest="S") 
     except Exception as e:
-        # Último recurso: Se o output falhar, retorna um PDF vazio e loga o erro no Streamlit
+        # Se o output falhar (erro grave no fpdf2), retorna um PDF vazio
+        # para que o st.download_button não trave.
         st.error(f"Erro fatal ao finalizar o PDF: {e}")
-        pdf_bytes = b"Erro na geracao do PDF."
+        # Retorna uma string de bytes vazia (b"")
+        pdf_bytes = b"" 
 
     return pdf_bytes
 
@@ -566,5 +568,6 @@ if page == 'Historico':
 # ---------------------- Footer ----------------------
 st.markdown('---')
 st.caption('Aplicação URB Fiscalização - Versão Finalizada.')
+
 
 
