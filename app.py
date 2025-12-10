@@ -8,7 +8,7 @@ from datetime import datetime
 import hashlib
 from io import BytesIO
 
-# Import FPDF (Substituindo ReportLab e garantindo estabilidade)
+# Import FPDF (Geração de PDF estável)
 from fpdf import FPDF 
 
 # Configuração da Página
@@ -140,6 +140,24 @@ def fetch_all_denuncias():
         df['fotos'] = df['fotos'].apply(safe_json_load)
     return df
 
+def fetch_denuncia_by_id(id_):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT * FROM denuncias WHERE id = ?', (id_,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        columns = ['id', 'external_id', 'created_at', 'origem', 'tipo', 'rua', 'numero', 'bairro', 'zona', 'latitude', 'longitude', 'descricao', 'fotos', 'quem_recebeu', 'status']
+        record = dict(zip(columns, row))
+        try:
+            # Garante que 'fotos' seja uma lista, mesmo que salva como string JSON
+            record['fotos'] = json.loads(record['fotos']) if isinstance(record['fotos'], str) else []
+        except:
+             record['fotos'] = []
+        return record
+    return None
+
+
 def update_denuncia_status(id_, status):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -221,12 +239,69 @@ Status: {record['status']}
     pdf.multi_cell(0, 6, " " * 100, 1, 'L', 0) 
     pdf.ln(1)
 
-    # Retorna o PDF como bytes (sem encode, para evitar 'bytearray' object has no attribute 'encode')
+    # Retorna o PDF como bytes (sem encode)
     pdf_bytes = pdf.output(dest="S") 
     return pdf_bytes
     
 # ---------------------- FIM DA GERAÇÃO DE PDF ----------------------
 
+# ---------------------- CALLBACK DE FORMULÁRIO ----------------------
+
+def handle_form_submit(external_id, created_at, origem, tipo, rua, numero, bairro, zona, lat, lon, descricao, fotos, quem_recebeu):
+    """Função que processa o formulário de registro após o clique em 'Salvar'."""
+    
+    # 1. Salvar Arquivos de Fotos (sem uso no PDF, mas salvos no DB)
+    saved_files = []
+    if fotos:
+        for f in fotos:
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+            safe_name = f.name.replace(" ", "_")
+            filename = f"{external_id.replace('/','_')}_{timestamp}_{safe_name}"
+            path = os.path.join(UPLOADS_DIR, filename)
+            with open(path, 'wb') as out:
+                out.write(f.read())
+            saved_files.append(path)
+    
+    # 2. Montar o Registro
+    record = {
+        'external_id': external_id,
+        'created_at': created_at,
+        'origem': origem,
+        'tipo': tipo,
+        'rua': rua,
+        'numero': numero,
+        'bairro': bairro,
+        'zona': zona,
+        'latitude': lat,
+        'longitude': lon,
+        'descricao': descricao,
+        'fotos': saved_files,
+        'quem_recebeu': quem_recebeu,
+        'status': 'Pendente'
+    }
+    
+    # 3. Inserir no Banco de Dados
+    insert_denuncia(record)
+    st.success('Denúncia salva com sucesso!')
+
+    # 4. Tentar Gerar o PDF (Define o estado de download)
+    try:
+        pdf_bytes = create_pdf_from_record(record)
+        
+        # SÓ DEFINE O ESTADO SE A GERAÇÃO FOR BEM-SUCEDIDA
+        if pdf_bytes and isinstance(pdf_bytes, (bytes, bytearray)):
+            st.session_state['download_pdf_data'] = pdf_bytes
+            st.session_state['download_pdf_id'] = external_id
+            # Limpa o estado anterior de edição, se houver
+            if 'last_edited_pdf' in st.session_state:
+                 del st.session_state['last_edited_pdf']
+        else:
+            st.warning("⚠️ Falha na geração do PDF. O registro foi salvo, mas o documento não está disponível.")
+
+    except Exception as e:
+        st.error(f"⚠️ Erro grave na geração do PDF: {e}")
+        
+    st.rerun()
 
 # ---------------------- Init ----------------------
 init_db()
@@ -247,7 +322,7 @@ footer {visibility: hidden}
 /* Estilo do Título Principal */
 .h1-urb {font-weight:800; color: #003300;}
 
-/* Estiliza o título do APP na BARRA LATERAL (para corrigir a cor) */
+/* Estiliza o título do APP na BARRA LATERAL */
 [data-testid="stSidebar"] .st-emotion-cache-p5m9y8 p {
     color: #DAA520; 
     font-weight: bold;
@@ -323,103 +398,69 @@ if page == 'Admin - Gestão de Usuários':
 # ---------------------- Page: Registro ----------------------
 if page == 'Registro da denuncia':
     st.header('Registro da Denúncia')
-    
+
     with st.form('registro'):
         external_id = generate_external_id()
+        created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         st.write(f"**Id da denúncia (Prévia):** {external_id}")
-        created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         st.write(f"**Data e Hora:** {created_at}")
 
-        origem = st.selectbox('Origem da denúncia', OPCOES_ORIGEM)
-        tipo = st.selectbox('Tipo de denúncia', OPCOES_TIPO)
+        origem = st.selectbox('Origem da denúncia', OPCOES_ORIGEM, key='f_origem')
+        tipo = st.selectbox('Tipo de denúncia', OPCOES_TIPO, key='f_tipo')
         
         c1, c2 = st.columns(2)
-        rua = c1.text_input('Nome da rua')
-        numero = c2.text_input('Número')
+        rua = c1.text_input('Nome da rua', key='f_rua')
+        numero = c2.text_input('Número', key='f_numero')
         
-        bairro = st.selectbox('Bairro', OPCOES_BAIRROS)
-        zona = st.selectbox('Zona', OPCOES_ZONA)
+        bairro = st.selectbox('Bairro', OPCOES_BAIRROS, key='f_bairro')
+        zona = st.selectbox('Zona', OPCOES_ZONA, key='f_zona')
         
         c3, c4 = st.columns(2)
-        lat = c3.text_input('Latitude')
-        lon = c4.text_input('Longitude')
+        lat = c3.text_input('Latitude', key='f_lat')
+        lon = c4.text_input('Longitude', key='f_lon')
         
         if lat and lon:
             maps_link = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
             st.markdown(f"[Abrir localização no Google Maps]({maps_link})")
             
-        descricao = st.text_area('Descrição da Ordem de Serviço', height=150)
-        # O UPLOADER AINDA ESTÁ AQUI, MAS AS FOTOS NÃO SÃO INCLUÍDAS NO PDF PARA ESTABILIDADE
-        fotos = st.file_uploader('Anexar fotos (várias)', type=['png','jpg','jpeg'], accept_multiple_files=True)
-        quem_recebeu = st.selectbox('Quem recebeu a denúncia', OPCOES_FISCAIS)
+        descricao = st.text_area('Descrição da Ordem de Serviço', height=150, key='f_descricao')
+        fotos = st.file_uploader('Anexar fotos (várias)', type=['png','jpg','jpeg'], accept_multiple_files=True, key='f_fotos')
+        quem_recebeu = st.selectbox('Quem recebeu a denúncia', OPCOES_FISCAIS, key='f_quem_recebeu')
 
-        submitted = st.form_submit_button('Salvar denúncia')
+        # Chamada ao callback
+        st.form_submit_button(
+            'Salvar denúncia',
+            on_click=handle_form_submit,
+            args=(external_id, created_at, origem, tipo, rua, numero, bairro, zona, lat, lon, descricao, fotos, quem_recebeu)
+        )
+
+    # Botão de PDF persistente (Lendo do novo estado de sessão)
+    # Verifica tanto o download_pdf_data (novo registro) quanto o last_edited_pdf (edição)
+    if 'download_pdf_data' in st.session_state and 'download_pdf_id' in st.session_state:
         
-        if submitted:
-            saved_files = []
-            if fotos:
-                for f in fotos:
-                    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-                    safe_name = f.name.replace(" ", "_")
-                    filename = f"{external_id.replace('/','_')}_{timestamp}_{safe_name}"
-                    path = os.path.join(UPLOADS_DIR, filename)
-                    with open(path, 'wb') as out:
-                        out.write(f.read())
-                    saved_files.append(path)
-            
-            record = {
-                'external_id': external_id,
-                'created_at': created_at,
-                'origem': origem,
-                'tipo': tipo,
-                'rua': rua,
-                'numero': numero,
-                'bairro': bairro,
-                'zona': zona,
-                'latitude': lat,
-                'longitude': lon,
-                'descricao': descricao,
-                'fotos': saved_files,
-                'quem_recebeu': quem_recebeu,
-                'status': 'Pendente'
-            }
-            insert_denuncia(record)
-            st.session_state['last_pdf_record'] = record
-            st.success('Denúncia salva com sucesso!')
-
-    # Botão de PDF persistente (COM TRATAMENTO DE ERRO FINAL)
-    if 'last_pdf_record' in st.session_state:
+        pdf_data = st.session_state['download_pdf_data']
+        pdf_id = st.session_state['download_pdf_id']
+        
         st.markdown("---")
         st.subheader("Documento Gerado")
         
-        rec = st.session_state['last_pdf_record']
-        pdf_bytes = None  # Inicializa como None para controle de erro
-        
-        try:
-            # Tenta gerar o PDF. A função create_pdf_from_record agora tem que retornar bytes ou b""
-            pdf_bytes = create_pdf_from_record(rec)
-        except Exception as e:
-            # Captura qualquer exceção não tratada na função de PDF
-            st.error(f"⚠️ Erro grave na geração do PDF: {e}")
-            pdf_bytes = None
-
-        # Renderiza o botão SOMENTE se os bytes forem válidos
-        if pdf_bytes and isinstance(pdf_bytes, (bytes, bytearray)):
-            col_down, col_clear = st.columns([1,1])
-            with col_down:
-                st.download_button(
-                    label='📥 Baixar Ordem de Serviço (PDF)', 
-                    data=pdf_bytes, 
-                    file_name=f"OS_{rec['external_id'].replace('/', '_')}.pdf", 
-                    mime='application/pdf'
-                )
-            with col_clear:
-                if st.button("Limpar / Novo Registro"):
-                    del st.session_state['last_pdf_record']
-                    st.rerun()
-        else:
-            st.warning("⚠️ O PDF não pôde ser gerado. Verifique o console de logs para detalhes do erro.")
+        col_down, col_clear = st.columns([1,1])
+        with col_down:
+            st.download_button(
+                label='📥 Baixar Ordem de Serviço (PDF)', 
+                data=pdf_data, 
+                file_name=f"OS_{pdf_id.replace('/', '_')}.pdf", 
+                mime='application/pdf'
+            )
+        with col_clear:
+            if st.button("Limpar / Novo Registro"):
+                # Limpa os estados de download
+                del st.session_state['download_pdf_data']
+                del st.session_state['download_pdf_id']
+                if 'last_edited_pdf' in st.session_state:
+                     del st.session_state['last_edited_pdf']
+                st.rerun()
 
 
 # ---------------------- Page: Historico ----------------------
@@ -485,21 +526,26 @@ if page == 'Historico':
 
     st.markdown('---')
     
-    # Editar Denúncia
+    # ---------------------- Editar Denúncia ----------------------
     st.subheader('Editar Detalhes')
     edit_id = st.number_input('ID interno da denúncia a editar', min_value=1, step=1, key='edit_id_input')
     
+    # Botão para carregar o formulário de edição
     if st.button('Carregar para edição'):
         st.session_state['edit_mode_id'] = int(edit_id)
+        # Limpa o estado de download anterior (se veio do Registro)
+        if 'download_pdf_data' in st.session_state:
+             del st.session_state['download_pdf_data']
+             del st.session_state['download_pdf_id']
+
 
     if 'edit_mode_id' in st.session_state:
         target_id = st.session_state['edit_mode_id']
-        rec_matches = df[df['id']==target_id]
+        rec = fetch_denuncia_by_id(target_id)
         
-        if rec_matches.empty:
+        if not rec:
             st.error('ID não encontrado')
         else:
-            rec = rec_matches.iloc[0]
             st.info(f"Editando ID: {rec['external_id']}")
             
             with st.form('edit_form'):
@@ -542,14 +588,55 @@ if page == 'Historico':
                         'latitude': lat_e,
                         'longitude': lon_e,
                         'descricao': desc_e,
+                        # Mantém a lista de fotos salvas no DB
                         'fotos': rec['fotos'], 
                         'quem_recebeu': quem_e,
                         'status': status_e
                     }
                     update_denuncia_full(target_id, newrow)
                     st.success('Registro atualizado com sucesso!')
+
+                    # --- GERAÇÃO DE PDF APÓS EDIÇÃO ---
+                    updated_record = fetch_denuncia_by_id(target_id)
+                    
+                    try:
+                        pdf_bytes = create_pdf_from_record(updated_record)
+                        if pdf_bytes and isinstance(pdf_bytes, (bytes, bytearray)):
+                            # Define um novo estado de sessão para o download pós-edição
+                            st.session_state['last_edited_pdf'] = {
+                                'data': pdf_bytes,
+                                'external_id': updated_record['external_id']
+                            }
+                        else:
+                            st.warning("⚠️ O registro foi salvo, mas o PDF atualizado não pôde ser gerado.")
+                    except Exception as e:
+                        st.error(f"⚠️ Erro ao gerar PDF após edição: {e}")
+                    # --- FIM GERAÇÃO DE PDF PÓS EDIÇÃO ---
+
                     del st.session_state['edit_mode_id']
                     st.rerun()
+
+    # ---------------------- Botão de Download Pós-Edição ----------------------
+    if 'last_edited_pdf' in st.session_state:
+        pdf_info = st.session_state['last_edited_pdf']
+        
+        st.markdown("---")
+        st.subheader("📥 Baixar PDF Atualizado")
+        
+        c_down, c_info = st.columns([1,2])
+        with c_down:
+            st.download_button(
+                label='Baixar Ordem de Serviço Editada', 
+                data=pdf_info['data'], 
+                file_name=f"OS_{pdf_info['external_id'].replace('/', '_')}_EDITADA.pdf", 
+                mime='application/pdf'
+            )
+        with c_info:
+             st.info(f"PDF gerado para OS Nº {pdf_info['external_id']}.")
+        
+        if st.button("Esconder Download"):
+            del st.session_state['last_edited_pdf']
+            st.rerun()
 
 # ---------------------- Footer ----------------------
 st.markdown('---')
