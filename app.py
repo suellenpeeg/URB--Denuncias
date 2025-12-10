@@ -8,24 +8,18 @@ from datetime import datetime
 import hashlib
 from io import BytesIO
 
+# Import FPDF (Substituindo ReportLab)
+from fpdf import FPDF 
+
 # Configuração da Página
 st.set_page_config(page_title="URB Fiscalização - Denúncias", layout="wide")
-
-# PDF generation
-try:
-    from reportlab.lib.pagesizes import A4
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.utils import simpleSplit
-    REPORTLAB_AVAILABLE = True
-except ImportError:
-    REPORTLAB_AVAILABLE = False
 
 # Constantes e Caminhos
 DB_PATH = "denuncias.db"
 USERS_PATH = "users.json"
 UPLOADS_DIR = "uploads"
 
-# Listas de Opções Globais (Para evitar inconsistências)
+# Listas de Opções Globais
 OPCOES_BAIRROS = [
     "AGAMENON MAGALHÃES","ALTO DO MOURA","CAIUCÁ","CEDRO","CENTENÁRIO","CIDADE ALTA","CIDADE JARDIM",
     "DEPUTADO JOSÉ ANTÔNIO LIBERATO","DISTRITO INDUSTRIAL","DIVINÓPOLIS","INDIANÓPOLIS","JARDIM BOA VISTA",
@@ -102,8 +96,8 @@ def add_user(username, password, full_name=""):
     return True
 
 def verify_user(username, password):
-    # Admin fixo (Recomendado usar st.secrets em produção)
-    if username == 'admin' and password == 'fisc2023':
+    # Admin fixo
+    if username == 'admin' and password == 'fisc2023': 
         return {'username':'admin','full_name':'Administrador','is_admin':True}
     
     users = load_users()
@@ -113,7 +107,7 @@ def verify_user(username, password):
     return None
 
 def generate_external_id():
-    """Gera ID baseado no último ID sequencial (MAX ID) para evitar duplicidade ao deletar."""
+    """Gera ID baseado no último ID sequencial (MAX ID) para evitar duplicidade."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('SELECT MAX(id) FROM denuncias')
@@ -141,7 +135,8 @@ def fetch_all_denuncias():
         # Tratamento seguro de JSON
         def safe_json_load(x):
             try:
-                return json.loads(x) if x else []
+                # O problema era que o JSON às vezes era salvo como string pura '[]' ou 'null'
+                return json.loads(x) if x and isinstance(x, str) and x.strip().startswith('[') else []
             except:
                 return []
         df['fotos'] = df['fotos'].apply(safe_json_load)
@@ -170,122 +165,106 @@ def update_denuncia_full(id_, row):
     conn.commit()
     conn.close()
 
+
+# ---------------------- Geração de PDF com FPDF ----------------------
+class PDF(FPDF):
+    def header(self):
+        # Título da página (ajustado para FPDF)
+        self.set_font('Arial', 'B', 15)
+        self.cell(0, 10, 'URB Fiscalização - Ordem de Serviço', 0, 1, 'C')
+
+    def footer(self):
+        # Número da página
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 10, 'Página %s' % self.page_no(), 0, 0, 'C')
+
 def create_pdf_from_record(record):
-    """Gera o PDF (ReportLab)"""
-    buffer = BytesIO()
+    """Gera o PDF usando FPDF2 (Cross-plataforma e seguro para deploy)"""
+    
+    pdf = PDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=20)
+    
+    # ---------------- DADOS DA DENÚNCIA ----------------
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, f"Ordem de Serviço Nº {record['external_id']}", ln=True, align='L')
+    pdf.ln(2)
 
-    fotos = []
-    if record.get("fotos"):
-        try:
-            if isinstance(record["fotos"], list):
-                fotos = record["fotos"]
-            elif isinstance(record["fotos"], str):
-                if record["fotos"].startswith("["):
-                    fotos = json.loads(record["fotos"])
-                else:
-                    fotos = [f.strip() for f in record["fotos"].split(";") if f.strip()]
-        except:
-            fotos = []
+    pdf.set_font("Arial", "", 11)
+    
+    # Detalhes
+    pdf.multi_cell(0, 6, f"""
+Data/Hora: {record['created_at']}
+Origem: {record['origem']}
+Tipo: {record['tipo']}
+Endereço: {record['rua']}, {record['numero']}
+Bairro/Zona: {record['bairro']} / {record['zona']}
+Latitude/Longitude: {record['latitude']} / {record['longitude']}
+Quem recebeu: {record['quem_recebeu']}
+Status: {record['status']}
+""")
+    pdf.ln(4)
+    
+    # Descrição
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 6, "DESCRIÇÃO DA ORDEM DE SERVIÇO:", ln=True)
+    
+    pdf.set_font("Arial", "", 10)
+    # Caixa de descrição
+    # x=10, y=Atual, w=190, h=30 (caixa fixa para descrição)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.multi_cell(0, 5, record['descricao'], 1, 'L', 1)
+    
+    pdf.ln(6)
+    
+    # Campo Observações (Deixa espaço)
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 6, "OBSERVAÇÕES DE CAMPO / AÇÕES REALIZADAS:", ln=True)
+    
+    # Espaço para observações em campo (com borda)
+    pdf.multi_cell(0, 6, " " * 100, 1, 'L', 0) # Cria uma caixa de 10 linhas em branco
+    pdf.ln(10)
 
-    if REPORTLAB_AVAILABLE:
-        c = canvas.Canvas(buffer, pagesize=A4)
-        width, height = A4
-        y = height - 60
 
-        # Cabeçalho
-        c.setFont("Helvetica-Bold", 18)
-        c.drawString(50, y, f"Ordem de Serviço Nº {record['external_id']}")
-        y -= 40
+    # ---------------- FOTOS (SE EXISTIREM) ----------------
+    fotos = record.get("fotos", [])
+    if fotos:
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "FOTOS ANEXADAS", ln=True)
+        pdf.ln(4)
 
-        c.setFont("Helvetica", 11)
-        info_lines = [
-            f"Data/Hora: {record['created_at']}",
-            f"Origem: {record['origem']}",
-            f"Tipo: {record['tipo']}",
-            f"Endereço: {record['rua']}, {record['numero']}",
-            f"Bairro: {record['bairro']}",
-            f"Zona: {record['zona']}",
-            f"Latitude/Longitude: {record['latitude']} / {record['longitude']}",
-            f"Quem recebeu: {record['quem_recebeu']}",
-            "",
-            "DESCRIÇÃO DA ORDEM DE SERVIÇO:",
-        ]
-
-        for ln in info_lines:
-            c.drawString(50, y, ln)
-            y -= 16
-
-        # Descrição
-        text_width = width - 100
-        desc_lines = simpleSplit(record["descricao"], "Helvetica", 10, text_width)
+        x_start = 10
+        y_start = pdf.get_y()
+        max_w = 80
+        max_h = 70
+        x, y = x_start, y_start
         
-        # Calcula altura necessária para descrição
-        desc_box_height = max(len(desc_lines) * 14 + 20, 50)
-        
-        # Se descrição muito grande, quebra página? (Simplificado aqui: desenha até onde der)
-        if y - desc_box_height < 100:
-             c.showPage()
-             y = height - 50
-
-        c.rect(45, y - desc_box_height + 10, width - 90, desc_box_height, stroke=1, fill=0)
-
-        text_y = y - 20
-        c.setFont("Helvetica", 10)
-        for line in desc_lines:
-            c.drawString(55, text_y, line)
-            text_y -= 14
-
-        y -= desc_box_height + 40
-
-        # Campo Observações
-        c.setFont("Helvetica-Bold", 12)
-        c.drawString(50, y, "OBSERVAÇÕES DE CAMPO:")
-        y -= 20
-
-        obs_height = 12 * 14
-        if y - obs_height < 50:
-             c.showPage()
-             y = height - 50
-        
-        c.rect(45, y - obs_height + 10, width - 90, obs_height, stroke=1, fill=0)
-        c.showPage()
-
-        # Página de Fotos
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(50, height - 50, "FOTOS DA DENÚNCIA")
-
-        if fotos:
-            x = 50
-            y = height - 150
-            max_w = 200
-            max_h = 200
-
-            for foto_path in fotos:
+        for foto in fotos:
+            abs_path = os.path.abspath(foto)
+            if os.path.exists(abs_path):
                 try:
-                    abs_path = os.path.abspath(foto_path)
-                    if os.path.exists(abs_path):
-                        c.drawImage(abs_path, x, y, width=max_w, height=max_h, preserveAspectRatio=True, anchor='c')
-                except Exception as e:
-                    # print(f"Erro imagem: {e}") 
-                    pass
+                    # Tenta adicionar a imagem
+                    pdf.image(abs_path, x, y, w=max_w)
+                    x += max_w + 10 # Move para a direita
+                except Exception:
+                    # Em caso de erro de formato de imagem
+                    pdf.set_font("Arial", "", 8)
+                    pdf.cell(max_w, max_h, "Erro ao carregar imagem", 1, 0)
+                    x += max_w + 10
 
-                x += max_w + 20
-                if x + max_w > width - 40:
-                    x = 50
-                    y -= max_h + 40
-                    if y < 100:
-                        c.showPage()
-                        y = height - 150
+            if x > 150: # Se for a segunda imagem (ou se for a terceira, em uma página mais larga)
+                x = x_start
+                y += max_h + 10 # Desce uma linha
 
-        c.showPage()
-        c.save()
+                if y > 250: # Se chegou perto do rodapé
+                    pdf.add_page()
+                    y = 10 # Volta para o topo
 
-        pdf = buffer.getvalue()
-        buffer.close()
-        return pdf
-
-    # Fallback simples (FPDF) removido para simplificar, mas poderia manter
-    return b""
+    # Retorna o PDF como bytes
+    pdf_bytes = pdf.output(dest="S").encode("latin-1")
+    return pdf_bytes
 
 # ---------------------- Init ----------------------
 init_db()
@@ -324,7 +303,7 @@ if st.session_state['user'] is None:
             st.rerun()
         else:
             st.error('Usuário ou senha incorretos')
-    st.info("Administrador: 'SUELLEN NASCIMENTO' ")
+    st.info("Administrador: usuário 'Suellen Nascimento'/ ")
     st.stop()
 
 user = st.session_state['user']
@@ -359,7 +338,6 @@ if page == 'Admin - Gestão de Usuários':
     users = load_users()
     if users:
         dfu = pd.DataFrame(users)
-        # Esconde a senha no display
         if 'password' in dfu.columns:
             dfu = dfu.drop(columns=['password'])
         st.dataframe(dfu)
@@ -370,7 +348,6 @@ if page == 'Registro da denuncia':
     st.header('Registro da Denúncia')
     
     with st.form('registro'):
-        # CORREÇÃO: Geração de ID baseada no MAX ID para evitar duplicidade
         external_id = generate_external_id()
         
         st.write(f"**Id da denúncia (Prévia):** {external_id}")
@@ -392,6 +369,7 @@ if page == 'Registro da denuncia':
         lon = c4.text_input('Longitude')
         
         if lat and lon:
+            # Atenção: Link de mapa com formato corrigido
             maps_link = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
             st.markdown(f"[Abrir localização no Google Maps]({maps_link})")
             
@@ -406,7 +384,6 @@ if page == 'Registro da denuncia':
             if fotos:
                 for f in fotos:
                     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-                    # Sanitiza nome do arquivo
                     safe_name = f.name.replace(" ", "_")
                     filename = f"{external_id.replace('/','_')}_{timestamp}_{safe_name}"
                     path = os.path.join(UPLOADS_DIR, filename)
@@ -434,7 +411,7 @@ if page == 'Registro da denuncia':
             st.session_state['last_pdf_record'] = record
             st.success('Denúncia salva com sucesso!')
 
-    # CORREÇÃO: Botão de PDF persistente até ser limpo ou novo registro
+    # Botão de PDF persistente
     if 'last_pdf_record' in st.session_state:
         st.markdown("---")
         st.subheader("Documento Gerado")
@@ -464,7 +441,6 @@ if page == 'Historico':
         st.info('Nenhuma denúncia registrada ainda.')
         st.stop()
 
-    # Preparação para exibição
     display_df = df.copy()
     display_df['created_at'] = pd.to_datetime(display_df['created_at'])
     display_df['dias_passados'] = (pd.Timestamp(datetime.now()) - display_df['created_at']).dt.days
@@ -486,22 +462,12 @@ if page == 'Historico':
 
     filtered = display_df[mask]
 
-    # Estilização
+    # Exibição
     st.subheader(f'Resultados ({len(filtered)})')
     
     styled_df = filtered[['id','external_id','created_at','origem','tipo','bairro','quem_recebeu','status','dias_passados']].copy()
-    # Formata data para string limpa
     styled_df['created_at'] = styled_df['created_at'].dt.strftime('%d/%m/%Y %H:%M')
 
-    def color_status(val):
-        color = 'white'
-        if val == 'Concluída':
-            color = '#90EE90' # verde claro
-        elif val == 'Pendente':
-            color = '#FFB6C1' # vermelho claro
-        return f'background-color: {color}; color: black'
-
-    # Exibe tabela (sem estilização complexa para evitar bugs visuais, usando st.dataframe simples)
     st.dataframe(styled_df, use_container_width=True)
 
     # Ações em Lote
@@ -529,9 +495,9 @@ if page == 'Historico':
 
     st.markdown('---')
     
-    # ---------------------- Editar Denúncia (Corrigido) ----------------------
+    # Editar Denúncia
     st.subheader('Editar Detalhes')
-    edit_id = st.number_input('ID interno da denúncia a editar', min_value=1, step=1)
+    edit_id = st.number_input('ID interno da denúncia a editar', min_value=1, step=1, key='edit_id_input')
     
     if st.button('Carregar para edição'):
         st.session_state['edit_mode_id'] = int(edit_id)
@@ -547,7 +513,7 @@ if page == 'Historico':
             st.info(f"Editando ID: {rec['external_id']}")
             
             with st.form('edit_form'):
-                # CORREÇÃO: Uso de safe_index para evitar travamento se o valor no banco for antigo/diferente
+                # Uso de safe_index para evitar travamento
                 idx_origem = safe_index(OPCOES_ORIGEM, rec['origem'])
                 idx_tipo = safe_index(OPCOES_TIPO, rec['tipo'])
                 idx_bairro = safe_index(OPCOES_BAIRROS, rec['bairro'])
@@ -570,7 +536,6 @@ if page == 'Historico':
                 
                 quem_e = st.selectbox('Quem recebeu', OPCOES_FISCAIS, index=idx_fiscal)
                 
-                # Status manual
                 status_atual = rec['status']
                 idx_status = 0 if status_atual == 'Pendente' else 1
                 status_e = st.selectbox('Status', ['Pendente','Concluída'], index=idx_status)
@@ -588,16 +553,15 @@ if page == 'Historico':
                         'latitude': lat_e,
                         'longitude': lon_e,
                         'descricao': desc_e,
-                        'fotos': rec['fotos'], # Mantém fotos originais (upload na edição requer lógica extra)
+                        'fotos': rec['fotos'], 
                         'quem_recebeu': quem_e,
                         'status': status_e
                     }
                     update_denuncia_full(target_id, newrow)
                     st.success('Registro atualizado com sucesso!')
-                    # Limpa modo de edição para refresh
                     del st.session_state['edit_mode_id']
                     st.rerun()
 
 # ---------------------- Footer ----------------------
 st.markdown('---')
-st.caption('Aplicação URB Fiscalização - Versão Corrigida')
+st.caption('Aplicação URB Fiscalização - Versão Finalizada.')
