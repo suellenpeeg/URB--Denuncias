@@ -281,7 +281,7 @@ Status: {record['status']}
     # Retorna o PDF como bytes
     # O comando output(dest="S") agora tem proteção contra falhas de imagem
     try:
-        pdf_bytes = pdf.output(dest="S").encode("latin-1")
+        pdf_bytes = pdf.output(dest="S")
     except Exception as e:
         # Último recurso: Se o output falhar, retorna um PDF vazio e loga o erro no Streamlit
         st.error(f"Erro fatal ao finalizar o PDF: {e}")
@@ -566,4 +566,5 @@ if page == 'Historico':
 # ---------------------- Footer ----------------------
 st.markdown('---')
 st.caption('Aplicação URB Fiscalização - Versão Finalizada.')
+
 
