@@ -179,6 +179,19 @@ class PDF(FPDF):
         self.set_font('Arial', 'I', 8)
         self.cell(0, 10, 'Página %s' % self.page_no(), 0, 0, 'C')
 
+# ---------------------- Geração de PDF com FPDF (CORRIGIDO) ----------------------
+class PDF(FPDF):
+    def header(self):
+        # Título da página (ajustado para FPDF)
+        self.set_font('Arial', 'B', 15)
+        self.cell(0, 10, 'URB Fiscalização - Ordem de Serviço', 0, 1, 'C')
+
+    def footer(self):
+        # Número da página
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 10, 'Página %s' % self.page_no(), 0, 0, 'C')
+
 def create_pdf_from_record(record):
     """Gera o PDF usando FPDF2 (Cross-plataforma e seguro para deploy)"""
     
@@ -212,7 +225,6 @@ Status: {record['status']}
     
     pdf.set_font("Arial", "", 10)
     # Caixa de descrição
-    # x=10, y=Atual, w=190, h=30 (caixa fixa para descrição)
     pdf.set_fill_color(240, 240, 240)
     pdf.multi_cell(0, 5, record['descricao'], 1, 'L', 1)
     
@@ -223,11 +235,11 @@ Status: {record['status']}
     pdf.cell(0, 6, "OBSERVAÇÕES DE CAMPO / AÇÕES REALIZADAS:", ln=True)
     
     # Espaço para observações em campo (com borda)
-    pdf.multi_cell(0, 6, " " * 100, 1, 'L', 0) # Cria uma caixa de 10 linhas em branco
-    pdf.ln(10)
+    pdf.multi_cell(0, 6, " " * 100, 1, 'L', 0) 
+    pdf.ln(1)
 
 
-    # ---------------- FOTOS (SE EXISTIREM) ----------------
+    # ---------------- FOTOS (CORREÇÃO DE ERRO) ----------------
     fotos = record.get("fotos", [])
     if fotos:
         pdf.add_page()
@@ -243,18 +255,22 @@ Status: {record['status']}
         
         for foto in fotos:
             abs_path = os.path.abspath(foto)
+            
+            # --- BLOC DE TRATAMENTO DE ERRO CRÍTICO ---
             if os.path.exists(abs_path):
                 try:
                     # Tenta adicionar a imagem
                     pdf.image(abs_path, x, y, w=max_w)
                     x += max_w + 10 # Move para a direita
-                except Exception:
-                    # Em caso de erro de formato de imagem
-                    pdf.set_font("Arial", "", 8)
-                    pdf.cell(max_w, max_h, "Erro ao carregar imagem", 1, 0)
+                except Exception as e:
+                    # Se falhar, registra um texto de erro no lugar da imagem e continua
+                    pdf.set_font("Arial", "B", 8)
+                    pdf.set_xy(x, y) # Posiciona o cursor para o texto de erro
+                    pdf.multi_cell(max_w, max_h/2, "ERRO: Imagem falhou ao carregar", 1, 'C')
                     x += max_w + 10
-
-            if x > 150: # Se for a segunda imagem (ou se for a terceira, em uma página mais larga)
+                    # Não trave o PDF, apenas avisa e continua para a próxima imagem.
+                    
+            if x > 150: # Se for a segunda imagem na linha
                 x = x_start
                 y += max_h + 10 # Desce uma linha
 
@@ -263,30 +279,15 @@ Status: {record['status']}
                     y = 10 # Volta para o topo
 
     # Retorna o PDF como bytes
-    pdf_bytes = pdf.output(dest="S").encode("latin-1")
+    # O comando output(dest="S") agora tem proteção contra falhas de imagem
+    try:
+        pdf_bytes = pdf.output(dest="S").encode("latin-1")
+    except Exception as e:
+        # Último recurso: Se o output falhar, retorna um PDF vazio e loga o erro no Streamlit
+        st.error(f"Erro fatal ao finalizar o PDF: {e}")
+        pdf_bytes = b"Erro na geracao do PDF."
+
     return pdf_bytes
-
-# ---------------------- Init ----------------------
-init_db()
-if 'user' not in st.session_state:
-    st.session_state['user'] = None
-
-# ---------------------- Layout & CSS ----------------------
-st.markdown("""
-<style>
-header {visibility: hidden}
-footer {visibility: hidden}
-.sidebar .sidebar-content {
-    background: linear-gradient(#0b3b2e, #2f6f4f);
-}
-.h1-urb {font-weight:800; color: #003300;}
-</style>
-""", unsafe_allow_html=True)
-
-col1, col2 = st.columns([1,4])
-with col2:
-    st.markdown("<h1 class='h1-urb'>URB <span style='color:#DAA520'>Fiscalização - Denúncias</span></h1>", unsafe_allow_html=True)
-    st.write("")
 
 # ---------------------- Authentication ----------------------
 if st.session_state['user'] is None:
@@ -565,3 +566,4 @@ if page == 'Historico':
 # ---------------------- Footer ----------------------
 st.markdown('---')
 st.caption('Aplicação URB Fiscalização - Versão Finalizada.')
+
