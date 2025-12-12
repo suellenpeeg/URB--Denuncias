@@ -167,8 +167,9 @@ def load_data_from_sheet(sheet_name): # REMOVIDO gc do argumento
             return pd.DataFrame(columns=required_cols)
             
     except Exception as e:
-        st.error(f"Erro ao carregar dados do Google Sheets: {e}")
-        return pd.DataFrame(columns=required_cols)
+       st.error("Erro ao carregar dados do Google Sheets:")
+       st.code(repr(e))
+       raise e
 
 
 @st.cache_data(ttl=60) # Mantido o cache
@@ -203,7 +204,7 @@ def update_data_in_sheet(sheet_name, df): # REMOVIDO gc do argumento
     except Exception as e:
         st.error("Erro ao carregar dados do Google Sheets:")
         st.code(repr(e))
-        st.stop()
+        raise e
 
 
 def generate_external_id(df):
@@ -926,6 +927,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
