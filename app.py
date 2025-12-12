@@ -1,25 +1,30 @@
-
 import streamlit as st
 import pandas as pd
 import json
 import os
-import sqlite3
 from datetime import datetime
 import hashlib
 from io import BytesIO
+from PIL import Image # Import para manipulação de imagem/papel timbrado
+
+# Import Google Sheets
+import gspread
+from gspread.exceptions import WorksheetNotFound, SpreadsheetNotFound
 
 # Import FPDF (Geração de PDF estável)
-from fpdf import FPDF 
+from fpdf import FPDF
+# Nota: FPDF não é fpdf2, mas o código original usava fpdf, vamos manter e garantir a compatibilidade
+# A imagem do papel timbrado (upload) é 'Captura de tela 2025-12-11 155619.png'
 
-# Configuração da Página
+# --- Configuração da Página ---
 st.set_page_config(page_title="URB Fiscalização - Denúncias", layout="wide")
 
-# Constantes e Caminhos
-DB_PATH = "denuncias.db"
+# --- Constantes e Caminhos ---
 USERS_PATH = "users.json"
-UPLOADS_DIR = "uploads"
+UPLOADS_DIR = "uploads" # Manter para salvar localmente, mas a referência no sheets é o nome do arquivo
+SHEET_NAME = "denuncias_registro" # Nome da aba na planilha
 
-# Listas de Opções Globais
+# --- Listas de Opções Globais (Mantidas) ---
 OPCOES_BAIRROS = [
     "AGAMENON MAGALHÃES","ALTO DO MOURA","CAIUCÁ","CEDRO","CENTENÁRIO","CIDADE ALTA","CIDADE JARDIM",
     "DEPUTADO JOSÉ ANTÔNIO LIBERATO","DISTRITO INDUSTRIAL","DIVINÓPOLIS","INDIANÓPOLIS","JARDIM BOA VISTA",
@@ -34,11 +39,285 @@ OPCOES_ORIGEM = ['Pessoalmente','Telefone','Whatsapp','Ministério Publico','Adm
 OPCOES_TIPO = ['Urbana','Ambiental','Urbana e Ambiental']
 OPCOES_ZONA = ['NORTE','SUL','LESTE','OESTE','CENTRO','1° DISTRITO','2° DISTRITO','3° DISTRITO','4° DISTRITO','Zona rural']
 OPCOES_FISCAIS = ['EDVALDO WILSON BEZERRA DA SILVA - 000.323','PATRICIA MIRELLY BEZERRA CAMPOS - 000.332','RAIANY NAYARA DE LIMA - 000.362','SUELLEN BEZERRA DO NASCIMENTO - 000.417']
+OPCOES_STATUS = ['Pendente', 'Em Andamento', 'Concluída', 'Arquivada'] # Adicionado 'Em Andamento' e 'Arquivada' para melhor gestão
 
 if not os.path.exists(UPLOADS_DIR):
     os.makedirs(UPLOADS_DIR, exist_ok=True)
 
-# ---------------------- Utilities ----------------------
+# ---------------------- Google Sheets Connection ----------------------
+
+@st.cache_resource(ttl=3600) # Caching para evitar reconexão frequente
+def init_gspread_client():
+    """Inicializa e autentica o cliente gspread."""
+    try:
+        # Tenta autenticar via st.secrets (recomendado para Streamlit Cloud)
+        gc = gspread.service_account_from_dict(st.secrets["gcp_service_account"])
+        return gc
+    except Exception as e:
+        # Se falhar, exibe um erro e retorna None
+        st.error(f"Erro ao autenticar no Google Sheets: {e}")
+        st.stop()
+        return None
+
+@st.cache_data(ttl=60) # Caching para leitura frequente dos dados
+def load_data_from_sheet(gc, sheet_url, sheet_name):
+    """Carrega todos os dados de uma aba da planilha."""
+    try:
+        sh = gc.open_by_url(sheet_url)
+        worksheet = sh.worksheet(sheet_name)
+        data = worksheet.get_all_records()
+        df = pd.DataFrame(data)
+        
+        # Adiciona colunas se faltarem para garantir a estrutura
+        required_cols = ['id', 'external_id', 'created_at', 'origem', 'tipo', 'rua', 'numero', 'bairro', 'zona', 'latitude', 'longitude', 'descricao', 'fotos', 'quem_recebeu', 'status', 'acao_noturna', 'reincidencias']
+        for col in required_cols:
+            if col not in df.columns:
+                df[col] = ''
+        
+        # Processamento de colunas JSON (para listas de fotos e reincidências)
+        def safe_json_load(x):
+            try:
+                # O gspread retorna strings vazias ou nulas
+                return json.loads(x) if x and isinstance(x, str) and x.strip().startswith(('{','[')) else []
+            except:
+                return []
+        
+        df['fotos'] = df['fotos'].apply(safe_json_load)
+        df['reincidencias'] = df['reincidencias'].apply(safe_json_load)
+        
+        return df
+    except SpreadsheetNotFound:
+        st.error("Planilha não encontrada. Verifique a URL e se o Service Account tem acesso.")
+        st.stop()
+    except WorksheetNotFound:
+        st.warning(f"Aba '{sheet_name}' não encontrada. Criando nova aba...")
+        try:
+             sh.add_worksheet(title=sheet_name, rows=100, cols=20)
+             sh.worksheet(sheet_name).append_row(required_cols)
+             return pd.DataFrame(columns=required_cols) # Retorna um DF vazio com as colunas
+        except Exception as e:
+             st.error(f"Não foi possível criar a aba '{sheet_name}': {e}")
+             st.stop()
+    except Exception as e:
+        st.error(f"Erro ao carregar dados do Google Sheets: {e}")
+        st.stop()
+
+def update_data_in_sheet(gc, sheet_url, sheet_name, df):
+    """Atualiza o Google Sheets com o DataFrame modificado."""
+    try:
+        sh = gc.open_by_url(sheet_url)
+        worksheet = sh.worksheet(sheet_name)
+        
+        # Converte as colunas de listas de volta para strings JSON
+        df['fotos'] = df['fotos'].apply(lambda x: json.dumps(x) if isinstance(x, list) else '[]')
+        df['reincidencias'] = df['reincidencias'].apply(lambda x: json.dumps(x) if isinstance(x, list) else '[]')
+        
+        # O gspread atualiza a partir da célula A1.
+        # Transforma o DataFrame em lista de listas, incluindo cabeçalho.
+        data_to_write = [df.columns.tolist()] + df.values.tolist()
+        worksheet.update('A1', data_to_write)
+        
+        # Invalidar o cache após a escrita para forçar a recarga
+        load_data_from_sheet.clear()
+        
+    except Exception as e:
+        st.error(f"Erro ao salvar dados no Google Sheets: {e}")
+
+# ---------------------- Funções de Manipulação de Dados (Adaptadas) ----------------------
+
+@st.cache_data(ttl=60)
+def fetch_all_denuncias_df():
+    """Função wrapper para carregar o DataFrame (com caching)."""
+    gc = init_gspread_client()
+    sheet_url = st.secrets["gcp_service_account"]["spreadsheet_url"]
+    return load_data_from_sheet(gc, sheet_url, SHEET_NAME)
+
+def generate_external_id(df):
+    """Gera ID baseado no último ID sequencial (MAX ID)."""
+    max_id = df['id'].max() if not df.empty else 0
+    next_id = max_id + 1
+    year = datetime.now().year
+    return f"{next_id:04d}/{year}", next_id # Retorna o external_id e o id sequencial
+
+def insert_denuncia(record):
+    """Adiciona um novo registro no Sheets."""
+    df = fetch_all_denuncias_df()
+    
+    # 1. Definir ID Sequencial e External ID
+    external_id, seq_id = generate_external_id(df)
+    record['id'] = seq_id
+    record['external_id'] = external_id
+    record['acao_noturna'] = record.get('acao_noturna', False)
+    record['reincidencias'] = record.get('reincidencias', [])
+    
+    # Adicionar o novo registro ao DataFrame
+    new_df = pd.concat([df, pd.Series(record).to_frame().T], ignore_index=True)
+    
+    # 2. Salvar no Sheets
+    gc = init_gspread_client()
+    sheet_url = st.secrets["gcp_service_account"]["spreadsheet_url"]
+    update_data_in_sheet(gc, sheet_url, SHEET_NAME, new_df)
+    
+    return record # Retorna o record completo (com IDs)
+
+def fetch_denuncia_by_id(id_):
+    """Busca uma denúncia pelo ID sequencial (interno)."""
+    df = fetch_all_denuncias_df()
+    record = df[df['id'] == id_]
+    if not record.empty:
+        return record.iloc[0].to_dict()
+    return None
+
+def update_denuncia_full(id_, new_data):
+    """Atualiza um registro existente no Sheets."""
+    df = fetch_all_denuncias_df()
+    idx = df[df['id'] == id_].index
+    
+    if not idx.empty:
+        # Merge os dados mantendo o ID e External ID (e colunas de controle)
+        df.loc[idx, new_data.keys()] = new_data.values()
+        
+        # Salvar no Sheets
+        gc = init_gspread_client()
+        sheet_url = st.secrets["gcp_service_account"]["spreadsheet_url"]
+        update_data_in_sheet(gc, sheet_url, SHEET_NAME, df)
+        return True
+    return False
+
+def delete_denuncia(id_):
+    """Deleta um registro do Sheets."""
+    df = fetch_all_denuncias_df()
+    new_df = df[df['id'] != id_]
+    
+    if len(new_df) < len(df):
+        # Salvar no Sheets
+        gc = init_gspread_client()
+        sheet_url = st.secrets["gcp_service_account"]["spreadsheet_url"]
+        update_data_in_sheet(gc, sheet_url, SHEET_NAME, new_df)
+        return True
+    return False
+
+# ---------------------- FPDF com Papel Timbrado e Reincidência ----------------------
+
+class PDF(FPDF):
+    """Classe PDF customizada com Papel Timbrado."""
+    
+    def __init__(self, orientation='P', unit='mm', format='A4'):
+        super().__init__(orientation, unit, format)
+        # Tenta carregar a imagem do papel timbrado para uso
+        self.letterhead_path = "Captura de tela 2025-12-11 155619.png"
+        
+        # Tenta salvar o arquivo temporário do Streamlit para FPDF usar
+        if 'uploaded_letterhead_path' not in st.session_state:
+            # Assumindo que a imagem está no mesmo diretório
+            try:
+                if os.path.exists(self.letterhead_path):
+                     st.session_state['uploaded_letterhead_path'] = self.letterhead_path
+                else:
+                    # Se não existir, avisa (e não usará o timbrado)
+                    st.session_state['uploaded_letterhead_path'] = None
+                    st.warning("Papel timbrado não encontrado. O PDF será gerado sem ele.")
+            except:
+                st.session_state['uploaded_letterhead_path'] = None
+        
+        self.letterhead_path = st.session_state['uploaded_letterhead_path']
+
+
+    def header(self):
+        """Desenha o papel timbrado em cada página."""
+        if self.letterhead_path:
+            # Adiciona a imagem de fundo/timbrado (largura total, ajuste de altura)
+            self.image(self.letterhead_path, 0, 0, self.w)
+        
+        # Move o cursor para baixo para o conteúdo
+        self.set_y(40) 
+
+    def footer(self):
+        """Rodapé da página."""
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 10, 'Página %s' % self.page_no(), 0, 0, 'C')
+
+def add_record_details_to_pdf(pdf, record, is_reincidencia=False, reincidencia_num=0):
+    """Adiciona os detalhes de uma denúncia/reincidência à página do PDF."""
+    
+    if is_reincidencia:
+        title = f"Reincidência #{reincidencia_num} - OS Nº {record['external_id']}"
+        date_time = f"Data/Hora Reincidência: {record['data_reincidencia']}" # Data/Hora da reincidência
+        origem = f"Origem: {record['origem_reincidencia']}" # Origem da reincidência
+    else:
+        title = f"Ordem de Serviço Nº {record['external_id']}"
+        date_time = f"Data/Hora: {record['created_at']}"
+        origem = f"Origem: {record['origem']}"
+
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, title, ln=True, align='L')
+    pdf.ln(2)
+
+    pdf.set_font("Arial", "", 11)
+    
+    # Detalhes (Campos comuns ou do registro principal)
+    # Nota: Não exibe Latitude/Longitude para salvar espaço e relevância no PDF de campo
+    details = f"""
+{date_time}
+{origem}
+Tipo: {record['tipo']}
+Endereço: {record['rua']}, {record['numero']}
+Bairro/Zona: {record['bairro']} / {record['zona']}
+Quem recebeu: {record['quem_recebeu']}
+Status: {record['status']}
+"""
+    pdf.multi_cell(0, 6, details)
+    pdf.ln(4)
+    
+    # Descrição
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 6, "DESCRIÇÃO DA ORDEM DE SERVIÇO / REINCIDÊNCIA:", ln=True)
+    
+    pdf.set_font("Arial", "", 10)
+    # Pega a descrição correta
+    description = record.get('descricao_reincidencia') if is_reincidencia else record['descricao']
+    
+    # Caixa de descrição
+    pdf.set_fill_color(240, 240, 240)
+    pdf.multi_cell(0, 5, description, 1, 'L', 1)
+    
+    pdf.ln(6)
+    
+    # Campo Observações (Deixa espaço)
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 6, "OBSERVAÇÕES DE CAMPO / AÇÕES REALIZADAS:", ln=True)
+    
+    # Espaço para observações em campo (com borda)
+    pdf.multi_cell(0, 6, " " * 100, 1, 'L', 0)
+    pdf.ln(1)
+
+
+def create_pdf_from_record(record):
+    """Gera o PDF com registro principal na 1ª página e reincidências nas páginas seguintes."""
+    
+    pdf = PDF()
+    pdf.set_auto_page_break(auto=True, margin=20)
+    
+    # --- Página 1: Denúncia Principal ---
+    pdf.add_page()
+    add_record_details_to_pdf(pdf, record, is_reincidencia=False)
+    
+    # --- Páginas Subsequentes: Reincidências ---
+    reincidencias = record.get('reincidencias', [])
+    if reincidencias:
+        for i, reinc in enumerate(reincidencias, 1):
+            pdf.add_page()
+            # Adiciona os campos de denúncia principal ao registro de reincidência 
+            # para que os dados base (rua, bairro, etc.) estejam disponíveis
+            full_reinc_record = {**record, **reinc}
+            add_record_details_to_pdf(pdf, full_reinc_record, is_reincidencia=True, reincidencia_num=i)
+
+    # Retorna o PDF como bytes
+    pdf_bytes = pdf.output(dest="S")
+    return bytes(pdf_bytes) if isinstance(pdf_bytes, bytearray) else pdf_bytes
+
+# ---------------------- Utilities (Mantidas/Adaptadas) ----------------------
 
 def safe_index(lista, valor, padrao=0):
     """Retorna o índice do valor na lista de forma segura, evitando crash."""
@@ -47,30 +326,8 @@ def safe_index(lista, valor, padrao=0):
     except ValueError:
         return padrao
 
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS denuncias (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        external_id TEXT,
-        created_at TEXT,
-        origem TEXT,
-        tipo TEXT,
-        rua TEXT,
-        numero TEXT,
-        bairro TEXT,
-        zona TEXT,
-        latitude TEXT,
-        longitude TEXT,
-        descricao TEXT,
-        fotos TEXT,
-        quem_recebeu TEXT,
-        status TEXT
-    )''')
-    conn.commit()
-    conn.close()
-
 def load_users():
+    # Mantendo o armazenamento de usuários localmente para simplicidade
     if not os.path.exists(USERS_PATH):
         with open(USERS_PATH, 'w') as f:
             json.dump([], f)
@@ -97,7 +354,7 @@ def add_user(username, password, full_name=""):
 
 def verify_user(username, password):
     # Admin fixo
-    if username == 'admin' and password == 'fisc2023': 
+    if username == 'admin' and password == 'fisc2023':
         return {'username':'admin','full_name':'Administrador','is_admin':True}
     
     users = load_users()
@@ -106,165 +363,30 @@ def verify_user(username, password):
             return {'username':username,'full_name':u.get('full_name', username),'is_admin':False}
     return None
 
-def generate_external_id():
-    """Gera ID baseado no último ID sequencial (MAX ID)."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('SELECT MAX(id) FROM denuncias')
-    max_id = c.fetchone()[0]
-    conn.close()
-    
-    next_id = (max_id + 1) if max_id is not None else 1
-    year = datetime.now().year
-    return f"{next_id:04d}/{year}"
-
-def insert_denuncia(record):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('INSERT INTO denuncias (external_id, created_at, origem, tipo, rua, numero, bairro, zona, latitude, longitude, descricao, fotos, quem_recebeu, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (
-        record['external_id'], record['created_at'], record['origem'], record['tipo'], record['rua'], record['numero'], record['bairro'], record['zona'], record['latitude'], record['longitude'], record['descricao'], json.dumps(record['fotos']), record['quem_recebeu'], record.get('status','Pendente')
-    ))
-    conn.commit()
-    conn.close()
-
-def fetch_all_denuncias():
-    conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query('SELECT * FROM denuncias ORDER BY id DESC', conn)
-    conn.close()
-    if not df.empty:
-        def safe_json_load(x):
-            try:
-                return json.loads(x) if x and isinstance(x, str) and x.strip().startswith('[') else []
-            except:
-                return []
-        df['fotos'] = df['fotos'].apply(safe_json_load)
-    return df
-
-def fetch_denuncia_by_id(id_):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('SELECT * FROM denuncias WHERE id = ?', (id_,))
-    row = c.fetchone()
-    conn.close()
-    if row:
-        columns = ['id', 'external_id', 'created_at', 'origem', 'tipo', 'rua', 'numero', 'bairro', 'zona', 'latitude', 'longitude', 'descricao', 'fotos', 'quem_recebeu', 'status']
-        record = dict(zip(columns, row))
-        try:
-            # Garante que 'fotos' seja uma lista, mesmo que salva como string JSON
-            record['fotos'] = json.loads(record['fotos']) if isinstance(record['fotos'], str) else []
-        except:
-             record['fotos'] = []
-        return record
-    return None
-
-
-def update_denuncia_status(id_, status):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('UPDATE denuncias SET status = ? WHERE id = ?', (status, id_))
-    conn.commit()
-    conn.close()
-
-def delete_denuncia(id_):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('DELETE FROM denuncias WHERE id = ?', (id_,))
-    conn.commit()
-    conn.close()
-
-def update_denuncia_full(id_, row):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''UPDATE denuncias SET origem=?, tipo=?, rua=?, numero=?, bairro=?, zona=?, latitude=?, longitude=?, descricao=?, fotos=?, quem_recebeu=?, status=? WHERE id=?''', (
-        row['origem'], row['tipo'], row['rua'], row['numero'], row['bairro'], row['zona'], row['latitude'], row['longitude'], row['descricao'], json.dumps(row['fotos']), row['quem_recebeu'], row['status'], id_
-    ))
-    conn.commit()
-    conn.close()
-
-
-# ---------------------- Geração de PDF com FPDF (SOMENTE TEXTO) ----------------------
-class PDF(FPDF):
-    def header(self):
-        self.set_font('Arial', 'B', 15)
-        self.cell(0, 10, 'URB Fiscalização - Ordem de Serviço', 0, 1, 'C')
-
-    def footer(self):
-        self.set_y(-15)
-        self.set_font('Arial', 'I', 8)
-        self.cell(0, 10, 'Página %s' % self.page_no(), 0, 0, 'C')
-
-def create_pdf_from_record(record):
-    """Gera o PDF usando FPDF2, incluindo apenas dados textuais para estabilidade."""
-    
-    pdf = PDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=20)
-    
-    # ---------------- DADOS DA DENÚNCIA ----------------
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, f"Ordem de Serviço Nº {record['external_id']}", ln=True, align='L')
-    pdf.ln(2)
-
-    pdf.set_font("Arial", "", 11)
-    
-    # Detalhes
-    pdf.multi_cell(0, 6, f"""
-Data/Hora: {record['created_at']}
-Origem: {record['origem']}
-Tipo: {record['tipo']}
-Endereço: {record['rua']}, {record['numero']}
-Bairro/Zona: {record['bairro']} / {record['zona']}
-Latitude/Longitude: {record['latitude']} / {record['longitude']}
-Quem recebeu: {record['quem_recebeu']}
-Status: {record['status']}
-""")
-    pdf.ln(4)
-    
-    # Descrição
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 6, "DESCRIÇÃO DA ORDEM DE SERVIÇO:", ln=True)
-    
-    pdf.set_font("Arial", "", 10)
-    # Caixa de descrição
-    pdf.set_fill_color(240, 240, 240)
-    pdf.multi_cell(0, 5, record['descricao'], 1, 'L', 1)
-    
-    pdf.ln(6)
-    
-    # Campo Observações (Deixa espaço)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 6, "OBSERVAÇÕES DE CAMPO / AÇÕES REALIZADAS:", ln=True)
-    
-    # Espaço para observações em campo (com borda)
-    pdf.multi_cell(0, 6, " " * 100, 1, 'L', 0) 
-    pdf.ln(1)
-
-    # Retorna o PDF como bytes (fpdf2 retorna bytearray, que será convertido na função chamadora)
-    pdf_bytes = pdf.output(dest="S") 
-    return pdf_bytes
-    
-# ---------------------- FIM DA GERAÇÃO DE PDF ----------------------
-
 # ---------------------- CALLBACK DE FORMULÁRIO ----------------------
 
-def handle_form_submit(external_id, created_at, origem, tipo, rua, numero, bairro, zona, lat, lon, descricao, fotos, quem_recebeu):
+def handle_form_submit(origem, tipo, rua, numero, bairro, zona, lat, lon, descricao, fotos, quem_recebeu, acao_noturna):
     """Função que processa o formulário de registro após o clique em 'Salvar'."""
     
-    # 1. Salvar Arquivos de Fotos (sem uso no PDF, mas salvos no DB)
+    # O external_id e o id sequencial serão gerados DENTRO do insert_denuncia
+    created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    # 1. Salvar Arquivos de Fotos (localmente)
     saved_files = []
     if fotos:
+        # Pega a prévia do external_id para nomear
+        prev_external_id, _ = generate_external_id(fetch_all_denuncias_df()) 
         for f in fotos:
             timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
             safe_name = f.name.replace(" ", "_")
-            filename = f"{external_id.replace('/','_')}_{timestamp}_{safe_name}"
+            filename = f"{prev_external_id.replace('/','_')}_{timestamp}_{safe_name}"
             path = os.path.join(UPLOADS_DIR, filename)
             with open(path, 'wb') as out:
                 out.write(f.read())
             saved_files.append(path)
     
-    # 2. Montar o Registro
+    # 2. Montar o Registro (sem id/external_id, que serão adicionados na função insert)
     record = {
-        'external_id': external_id,
         'created_at': created_at,
         'origem': origem,
         'tipo': tipo,
@@ -277,25 +399,23 @@ def handle_form_submit(external_id, created_at, origem, tipo, rua, numero, bairr
         'descricao': descricao,
         'fotos': saved_files,
         'quem_recebeu': quem_recebeu,
-        'status': 'Pendente'
+        'status': 'Pendente',
+        'acao_noturna': acao_noturna,
+        'reincidencias': []
     }
     
-    # 3. Inserir no Banco de Dados
-    insert_denuncia(record)
-    st.success('Denúncia salva com sucesso!')
+    # 3. Inserir no Google Sheets
+    inserted_record = insert_denuncia(record)
+    st.success(f"Denúncia {inserted_record['external_id']} salva com sucesso!")
 
-    # 4. Tentar Gerar o PDF (Define o estado de download)
+    # 4. Tentar Gerar o PDF
     try:
-        pdf_bytes = create_pdf_from_record(record)
+        pdf_bytes = create_pdf_from_record(inserted_record)
         
-        # CORREÇÃO CRÍTICA: Forçar a conversão para o tipo 'bytes' para evitar StreamlitAPIException
-        if isinstance(pdf_bytes, bytearray):
-            pdf_bytes = bytes(pdf_bytes) 
-            
         # SÓ DEFINE O ESTADO SE A GERAÇÃO FOR BEM-SUCEDIDA e TIPO CORRETO
-        if pdf_bytes and isinstance(pdf_bytes, bytes): 
+        if pdf_bytes and isinstance(pdf_bytes, bytes):
             st.session_state['download_pdf_data'] = pdf_bytes
-            st.session_state['download_pdf_id'] = external_id
+            st.session_state['download_pdf_id'] = inserted_record['external_id']
             
             # Limpa o estado anterior de edição
             if 'last_edited_pdf' in st.session_state:
@@ -308,12 +428,17 @@ def handle_form_submit(external_id, created_at, origem, tipo, rua, numero, bairr
         
     st.rerun()
 
-# ---------------------- Init ----------------------
-init_db()
+# ---------------------- Init (Funções de Autenticação/Inicialização) ----------------------
+
 if 'user' not in st.session_state:
     st.session_state['user'] = None
-
+    
+# Tenta conectar ao Google Sheets (roda no início, usa @st.cache_resource)
+if init_gspread_client() is None:
+    st.stop()
+    
 # ---------------------- Layout & CSS ----------------------
+# (Mantido o CSS do original)
 st.markdown("""
 <style>
 header {visibility: hidden}
@@ -374,7 +499,7 @@ if user.get('is_admin'):
     pages.insert(0, 'Admin - Gestão de Usuários')
 page = st.sidebar.selectbox('Navegação', pages)
 
-# ---------------------- Page: Admin ----------------------
+# ---------------------- Page: Admin (Mantida) ----------------------
 if page == 'Admin - Gestão de Usuários':
     st.header('Administração - Cadastrar novos usuários')
     with st.form('add_user'):
@@ -403,17 +528,24 @@ if page == 'Admin - Gestão de Usuários':
 # ---------------------- Page: Registro ----------------------
 if page == 'Registro da denuncia':
     st.header('Registro da Denúncia')
+    
+    # Carrega o DF apenas para gerar a prévia do ID
+    df_preview = fetch_all_denuncias_df()
+    external_id_preview, _ = generate_external_id(df_preview)
+    created_at_preview = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     with st.form('registro'):
-        external_id = generate_external_id()
-        created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        st.write(f"**Id da denúncia (Prévia):** {external_id}")
-        st.write(f"**Data e Hora:** {created_at}")
+        st.write(f"**Id da denúncia (Prévia):** {external_id_preview}")
+        st.write(f"**Data e Hora:** {created_at_preview}")
 
         origem = st.selectbox('Origem da denúncia', OPCOES_ORIGEM, key='f_origem')
         tipo = st.selectbox('Tipo de denúncia', OPCOES_TIPO, key='f_tipo')
         
+        c0, c_acao_noturna = st.columns([3, 1])
+        with c_acao_noturna:
+            acao_noturna = st.checkbox("Ação Noturna", key='f_acao_noturna')
+
         c1, c2 = st.columns(2)
         rua = c1.text_input('Nome da rua', key='f_rua')
         numero = c2.text_input('Número', key='f_numero')
@@ -426,7 +558,7 @@ if page == 'Registro da denuncia':
         lon = c4.text_input('Longitude', key='f_lon')
         
         if lat and lon:
-            maps_link = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+            maps_link = f"http://www.google.com/maps/place/{lat},{lon}"
             st.markdown(f"[Abrir localização no Google Maps]({maps_link})")
             
         descricao = st.text_area('Descrição da Ordem de Serviço', height=150, key='f_descricao')
@@ -437,7 +569,7 @@ if page == 'Registro da denuncia':
         st.form_submit_button(
             'Salvar denúncia',
             on_click=handle_form_submit,
-            args=(external_id, created_at, origem, tipo, rua, numero, bairro, zona, lat, lon, descricao, fotos, quem_recebeu)
+            args=(origem, tipo, rua, numero, bairro, zona, lat, lon, descricao, fotos, quem_recebeu, acao_noturna)
         )
 
     # Botão de PDF persistente (Lendo do novo estado de sessão)
@@ -460,8 +592,9 @@ if page == 'Registro da denuncia':
         with col_clear:
             if st.button("Limpar / Novo Registro"):
                 # Limpa os estados de download
-                del st.session_state['download_pdf_data']
-                del st.session_state['download_pdf_id']
+                if 'download_pdf_data' in st.session_state:
+                    del st.session_state['download_pdf_data']
+                    del st.session_state['download_pdf_id']
                 if 'last_edited_pdf' in st.session_state:
                      del st.session_state['last_edited_pdf']
                 st.rerun()
@@ -470,21 +603,39 @@ if page == 'Registro da denuncia':
 # ---------------------- Page: Historico ----------------------
 if page == 'Historico':
     st.header('Histórico de Denúncias')
-    df = fetch_all_denuncias()
+    
+    # Limpar estados de edição/reincidência/download ao mudar de página
+    if 'edit_mode_id' in st.session_state: del st.session_state['edit_mode_id']
+    if 'reinc_mode_id' in st.session_state: del st.session_state['reinc_mode_id']
+    if 'download_pdf_data' in st.session_state: 
+        del st.session_state['download_pdf_data']
+        del st.session_state['download_pdf_id']
+
+
+    df = fetch_all_denuncias_df()
     
     if df.empty:
         st.info('Nenhuma denúncia registrada ainda.')
         st.stop()
 
+    # Garantir que 'id' é numérico
+    df['id'] = pd.to_numeric(df['id'], errors='coerce')
+    df = df.dropna(subset=['id']).astype({'id': int})
+    
     display_df = df.copy()
     display_df['created_at'] = pd.to_datetime(display_df['created_at'])
     display_df['dias_passados'] = (pd.Timestamp(datetime.now()) - display_df['created_at']).dt.days
+    
+    # Campo para indicar se tem reincidências
+    display_df['Tem Reincidência'] = display_df['reincidencias'].apply(lambda x: '✅ Sim' if x else '❌ Não')
+    display_df['Ação Noturna'] = display_df['acao_noturna'].apply(lambda x: '🌙 Sim' if x else 'Não')
 
     # Filtros
     st.subheader('Pesquisar / Filtrar')
     cols = st.columns(4)
     q_ext = cols[0].text_input('Id (ex: 0001/2025)')
-    q_status = cols[2].selectbox('Status', options=['Todos','Pendente','Concluída'])
+    q_status = cols[1].selectbox('Status', options=['Todos'] + OPCOES_STATUS)
+    q_acao_noturna = cols[2].selectbox('Ação Noturna', options=['Todos', 'Sim', 'Não'])
     q_text = cols[3].text_input('Texto na descrição')
 
     mask = pd.Series([True]*len(display_df))
@@ -492,68 +643,97 @@ if page == 'Historico':
         mask = mask & display_df['external_id'].str.contains(q_ext, na=False)
     if q_status and q_status != 'Todos':
         mask = mask & (display_df['status'] == q_status)
+    if q_acao_noturna == 'Sim':
+        mask = mask & (display_df['acao_noturna'] == True)
+    elif q_acao_noturna == 'Não':
+        mask = mask & (display_df['acao_noturna'] == False)
     if q_text:
-        mask = mask & display_df['descricao'].str.contains(q_text, na=False)
+        # Busca no campo principal e no JSON de reincidências
+        main_desc_mask = display_df['descricao'].str.contains(q_text, na=False, case=False)
+        reinc_desc_mask = display_df['reincidencias'].astype(str).str.contains(q_text, na=False, case=False)
+        mask = mask & (main_desc_mask | reinc_desc_mask)
 
-    filtered = display_df[mask]
+    filtered = display_df[mask].sort_values(by='id', ascending=False)
 
     # Exibição
     st.subheader(f'Resultados ({len(filtered)})')
     
-    styled_df = filtered[['id','external_id','created_at','origem','tipo','bairro','quem_recebeu','status','dias_passados']].copy()
+    styled_df = filtered[['id','external_id','created_at','origem','tipo','bairro','Ação Noturna','Tem Reincidência', 'quem_recebeu','status','dias_passados']].copy()
     styled_df['created_at'] = styled_df['created_at'].dt.strftime('%d/%m/%Y %H:%M')
 
     st.dataframe(styled_df, use_container_width=True)
 
-    # Ações em Lote
+    # Ações em Lote (Mantidas)
+    st.markdown('---')
     sel_ids = st.multiselect('Selecione IDs para Ações em Massa', options=filtered['id'].tolist())
     
     if sel_ids:
-        action_col1, action_col2, action_col3 = st.columns(3)
+        action_col1, action_col2, action_col3, action_col4 = st.columns(4)
         with action_col1:
             if st.button('✅ Marcar como Concluída'):
                 for i in sel_ids:
-                    update_denuncia_status(i, 'Concluída')
+                    update_denuncia_full(i, {'status': 'Concluída'})
                 st.success('Atualizado!')
                 st.rerun()
         with action_col2:
+             if st.button('🔄 Marcar como Pendente'):
+                for i in sel_ids:
+                    update_denuncia_full(i, {'status': 'Pendente'})
+                st.success('Atualizado!')
+                st.rerun()
+        with action_col3:
             if st.button('🗑️ Excluir Selecionados'):
                 for i in sel_ids:
                     delete_denuncia(i)
                 st.success('Excluído(s)!')
                 st.rerun()
-        with action_col3:
+        with action_col4:
             if st.button('⬇️ Exportar CSV'):
                 export_df = df[df['id'].isin(sel_ids)].copy()
-                csv = export_df.to_csv(index=False)
+                csv = export_df.to_csv(index=False).encode('utf-8')
                 st.download_button('Baixar CSV', csv, file_name='denuncias_selecionadas.csv', mime='text/csv')
 
     st.markdown('---')
     
-    # ---------------------- Editar Denúncia ----------------------
-    st.subheader('Editar Detalhes')
-    edit_id = st.number_input('ID interno da denúncia a editar', min_value=1, step=1, key='edit_id_input')
+    # ---------------------- Editar Denúncia / Adicionar Reincidência ----------------------
+    st.subheader('Opções por ID: Editar / Reincidência')
+    edit_id = st.number_input('ID interno da denúncia', min_value=1, step=1, key='action_id_input')
+    
+    col_load_edit, col_load_reinc = st.columns(2)
     
     # Botão para carregar o formulário de edição
-    if st.button('Carregar para edição'):
-        st.session_state['edit_mode_id'] = int(edit_id)
-        # Limpa o estado de download anterior (se veio do Registro)
-        if 'download_pdf_data' in st.session_state:
-             del st.session_state['download_pdf_data']
-             del st.session_state['download_pdf_id']
-        # Limpa o estado de download pós-edição anterior
-        if 'last_edited_pdf' in st.session_state:
-             del st.session_state['last_edited_pdf']
+    with col_load_edit:
+        if st.button('✍️ Carregar para Edição'):
+            st.session_state['edit_mode_id'] = int(edit_id)
+            if 'reinc_mode_id' in st.session_state: del st.session_state['reinc_mode_id']
+            if 'download_pdf_data' in st.session_state: 
+                del st.session_state['download_pdf_data']
+                del st.session_state['download_pdf_id']
+            if 'last_edited_pdf' in st.session_state: del st.session_state['last_edited_pdf']
+            st.rerun()
 
-
+    # Botão para carregar o formulário de reincidência
+    with col_load_reinc:
+        if st.button('➕ Adicionar Reincidência'):
+            st.session_state['reinc_mode_id'] = int(edit_id)
+            if 'edit_mode_id' in st.session_state: del st.session_state['edit_mode_id']
+            if 'download_pdf_data' in st.session_state: 
+                del st.session_state['download_pdf_data']
+                del st.session_state['download_pdf_id']
+            if 'last_edited_pdf' in st.session_state: del st.session_state['last_edited_pdf']
+            st.rerun()
+            
+    # --- Formulário de Edição ---
     if 'edit_mode_id' in st.session_state:
         target_id = st.session_state['edit_mode_id']
         rec = fetch_denuncia_by_id(target_id)
         
         if not rec:
             st.error('ID não encontrado')
+            if 'edit_mode_id' in st.session_state: del st.session_state['edit_mode_id']
+            st.stop()
         else:
-            st.info(f"Editando ID: {rec['external_id']}")
+            st.info(f"✍️ Editando Denúncia Principal: {rec['external_id']}")
             
             with st.form('edit_form'):
                 idx_origem = safe_index(OPCOES_ORIGEM, rec['origem'])
@@ -561,11 +741,15 @@ if page == 'Historico':
                 idx_bairro = safe_index(OPCOES_BAIRROS, rec['bairro'])
                 idx_zona = safe_index(OPCOES_ZONA, rec['zona'])
                 idx_fiscal = safe_index(OPCOES_FISCAIS, rec['quem_recebeu'])
+                idx_status = safe_index(OPCOES_STATUS, rec['status'])
                 
-                c_e1, c_e2 = st.columns(2)
+                c_e1, c_e2, c_e3 = st.columns(3)
                 origem_e = c_e1.selectbox('Origem', OPCOES_ORIGEM, index=idx_origem)
                 tipo_e = c_e2.selectbox('Tipo', OPCOES_TIPO, index=idx_tipo)
-                
+                status_e = c_e3.selectbox('Status', OPCOES_STATUS, index=idx_status)
+
+                acao_noturna_e = st.checkbox("Ação Noturna", value=rec['acao_noturna'], key='e_acao_noturna')
+
                 rua_e = st.text_input('Rua', value=rec['rua'])
                 numero_e = st.text_input('Número', value=rec['numero'])
                 
@@ -577,10 +761,6 @@ if page == 'Historico':
                 desc_e = st.text_area('Descrição', value=rec['descricao'])
                 
                 quem_e = st.selectbox('Quem recebeu', OPCOES_FISCAIS, index=idx_fiscal)
-                
-                status_atual = rec['status']
-                idx_status = 0 if status_atual == 'Pendente' else 1
-                status_e = st.selectbox('Status', ['Pendente','Concluída'], index=idx_status)
                 
                 submitted_e = st.form_submit_button('Salvar alterações')
                 
@@ -595,44 +775,87 @@ if page == 'Historico':
                         'latitude': lat_e,
                         'longitude': lon_e,
                         'descricao': desc_e,
-                        # Mantém a lista de fotos salvas no DB
-                        'fotos': rec['fotos'], 
                         'quem_recebeu': quem_e,
-                        'status': status_e
+                        'status': status_e,
+                        'acao_noturna': acao_noturna_e,
+                        'fotos': rec['fotos'], # Mantém a lista de fotos salvas no Sheets
+                        'reincidencias': rec['reincidencias'] # Mantém as reincidências
                     }
                     update_denuncia_full(target_id, newrow)
                     st.success('Registro atualizado com sucesso!')
 
-                    # --- GERAÇÃO DE PDF APÓS EDIÇÃO ---
+                    # GERAÇÃO DE PDF APÓS EDIÇÃO
                     updated_record = fetch_denuncia_by_id(target_id)
-                    
                     try:
                         pdf_bytes = create_pdf_from_record(updated_record)
-                        
-                        # CORREÇÃO CRÍTICA: Forçar a conversão para o tipo 'bytes'
-                        if isinstance(pdf_bytes, bytearray):
-                            pdf_bytes = bytes(pdf_bytes) 
-
-                        if pdf_bytes and isinstance(pdf_bytes, bytes): 
-                            # Define um novo estado de sessão para o download pós-edição
+                        if pdf_bytes and isinstance(pdf_bytes, bytes):
                             st.session_state['last_edited_pdf'] = {
                                 'data': pdf_bytes,
                                 'external_id': updated_record['external_id']
                             }
-                            # Limpa os estados de download de novo registro, se houver
-                            if 'download_pdf_data' in st.session_state:
-                                del st.session_state['download_pdf_data']
-                                del st.session_state['download_pdf_id']
                         else:
                             st.warning("⚠️ O registro foi salvo, mas o PDF atualizado não pôde ser gerado.")
                     except Exception as e:
                         st.error(f"⚠️ Erro ao gerar PDF após edição: {e}")
-                    # --- FIM GERAÇÃO DE PDF PÓS EDIÇÃO ---
-
+                    
                     del st.session_state['edit_mode_id']
                     st.rerun()
 
-    # ---------------------- Botão de Download Pós-Edição ----------------------
+    # --- Formulário de Adicionar Reincidência ---
+    elif 'reinc_mode_id' in st.session_state:
+        target_id = st.session_state['reinc_mode_id']
+        rec = fetch_denuncia_by_id(target_id)
+        
+        if not rec:
+            st.error('ID não encontrado')
+            if 'reinc_mode_id' in st.session_state: del st.session_state['reinc_mode_id']
+            st.stop()
+        else:
+            st.info(f"➕ Adicionando Reincidência a: {rec['external_id']}")
+            
+            with st.form('reincidencia_form'):
+                
+                data_reinc = st.text_input('Data e Hora da Reincidência', value=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                origem_reinc = st.selectbox('Fonte da Reincidência', OPCOES_ORIGEM)
+                desc_reinc = st.text_area('Nova Descrição da Reincidência', height=150)
+                
+                submitted_r = st.form_submit_button('Salvar Reincidência')
+                
+                if submitted_r:
+                    # Cria o objeto de nova reincidência
+                    new_reincidencia = {
+                        'data_reincidencia': data_reinc,
+                        'origem_reincidencia': origem_reinc,
+                        'descricao_reincidencia': desc_reinc
+                        # Não salva lat/lon/fiscal/status aqui, usa os da denúncia principal
+                    }
+                    
+                    # Carrega as reincidências existentes
+                    reincidencias = rec.get('reincidencias', [])
+                    reincidencias.append(new_reincidencia)
+                    
+                    # Atualiza o registro principal com a nova lista
+                    update_denuncia_full(target_id, {'reincidencias': reincidencias, 'status': 'Em Andamento'}) 
+                    st.success('Reincidência adicionada com sucesso! Status alterado para "Em Andamento".')
+
+                    # GERAÇÃO DE PDF APÓS REINCIDÊNCIA
+                    updated_record = fetch_denuncia_by_id(target_id)
+                    try:
+                        pdf_bytes = create_pdf_from_record(updated_record)
+                        if pdf_bytes and isinstance(pdf_bytes, bytes):
+                            st.session_state['last_edited_pdf'] = {
+                                'data': pdf_bytes,
+                                'external_id': updated_record['external_id']
+                            }
+                        else:
+                            st.warning("⚠️ O registro foi salvo, mas o PDF atualizado não pôde ser gerado.")
+                    except Exception as e:
+                        st.error(f"⚠️ Erro ao gerar PDF após reincidência: {e}")
+                    
+                    del st.session_state['reinc_mode_id']
+                    st.rerun()
+
+    # ---------------------- Botão de Download Pós-Ação (Edição/Reincidência) ----------------------
     if 'last_edited_pdf' in st.session_state:
         pdf_info = st.session_state['last_edited_pdf']
         
@@ -642,13 +865,13 @@ if page == 'Historico':
         c_down, c_info = st.columns([1,2])
         with c_down:
             st.download_button(
-                label='Baixar Ordem de Serviço Editada', 
+                label='Baixar Ordem de Serviço Atualizada (PDF)', 
                 data=pdf_info['data'], 
-                file_name=f"OS_{pdf_info['external_id'].replace('/', '_')}_EDITADA.pdf", 
+                file_name=f"OS_{pdf_info['external_id'].replace('/', '_')}_ATUALIZADA.pdf", 
                 mime='application/pdf'
             )
         with c_info:
-             st.info(f"PDF gerado para OS Nº {pdf_info['external_id']}.")
+             st.info(f"PDF gerado para OS Nº {pdf_info['external_id']} (incluindo reincidências, se houver).")
         
         if st.button("Esconder Download"):
             del st.session_state['last_edited_pdf']
@@ -656,4 +879,5 @@ if page == 'Historico':
 
 # ---------------------- Footer ----------------------
 st.markdown('---')
-st.caption('Aplicação URB Fiscalização - Versão Finalizada.')
+st.caption('Aplicação URB Fiscalização - Versão Adaptada para Google Sheets.')
+
