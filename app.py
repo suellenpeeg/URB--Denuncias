@@ -129,7 +129,7 @@ def update_data_in_sheet(gc, sheet_url, sheet_name, df):
 def fetch_all_denuncias_df():
     """Função wrapper para carregar o DataFrame (com caching)."""
     gc = init_gspread_client()
-    sheet_url = st.secrets["spreadsheet_url"] 
+    sheet_url = st.secrets["gcp_service_account"]["spreadsheet_url"] 
     return load_data_from_sheet(gc, sheet_url, SHEET_NAME)
 def generate_external_id(df):
     """Gera ID baseado no último ID sequencial (MAX ID)."""
@@ -154,7 +154,7 @@ def insert_denuncia(record):
     
     # 2. Salvar no Sheets
     gc = init_gspread_client()
-    sheet_url = st.secrets["spreadsheet_url"]
+    sheet_url = st.secrets["gcp_service_account"]["spreadsheet_url"]
     update_data_in_sheet(gc, sheet_url, SHEET_NAME, new_df)
     
     return record # Retorna o record completo (com IDs)
@@ -178,7 +178,7 @@ def update_denuncia_full(id_, new_data):
         
         # Salvar no Sheets
         gc = init_gspread_client()
-        sheet_url = st.secrets["spreadsheet_url"]
+        sheet_url = st.secrets["gcp_service_account"]["spreadsheet_url"]
         update_data_in_sheet(gc, sheet_url, SHEET_NAME, df)
         return True
     return False
@@ -879,6 +879,7 @@ if page == 'Historico':
 # ---------------------- Footer ----------------------
 st.markdown('---')
 st.caption('Aplicação URB Fiscalização - Versão Adaptada para Google Sheets.')
+
 
 
 
