@@ -201,7 +201,9 @@ def update_data_in_sheet(sheet_name, df): # REMOVIDO gc do argumento
         load_data_from_sheet.clear()
         
     except Exception as e:
-        st.error(f"Erro ao salvar dados no Google Sheets: {e}")
+        st.error("Erro ao carregar dados do Google Sheets:")
+        st.code(repr(e))
+        st.stop()
 
 
 def generate_external_id(df):
@@ -924,6 +926,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
