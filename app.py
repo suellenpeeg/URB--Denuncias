@@ -91,7 +91,9 @@ class SheetsClient:
                 st.error(f"Erro de Secrets: Falta a chave {e} no bloco [gcp_service_account].")
                 return None
             except Exception as e:
-                st.error(f"Erro fatal na autenticação GSheets: {e}")
+                # MUDANÇA TEMPORÁRIA: Imprime o erro completo no console do Streamlit Cloud	
+                print("DEBUG GSPREAD ERROR:", e)	
+                st.error("Erro fatal na autenticação GSheets.") # Mensagem na tela continua genérica
                 return None
         return cls._gc
 
@@ -904,6 +906,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
