@@ -17,6 +17,18 @@ from fpdf import FPDF
 # --- Configuração da Página ---
 st.set_page_config(page_title="URB Fiscalização - Denúncias", layout="wide")
 
+# === DEBUG SECRETS ===
+st.write("🔍 DEBUG: Chaves disponíveis em st.secrets:", list(st.secrets.keys()))
+
+if "gcp_service_account" in st.secrets:
+    st.write("🔍 DEBUG: Campos dentro de gcp_service_account:", list(st.secrets["gcp_service_account"].keys()))
+
+    pk = st.secrets["gcp_service_account"].get("private_key", "")
+    st.write("🔍 DEBUG: Tamanho da private_key:", len(pk))
+    st.write("🔍 DEBUG: private_key começa com BEGIN?:", "BEGIN" in pk)
+else:
+    st.write("❌ Bloco gcp_service_account não encontrado!")
+
 # --- Constantes e Caminhos ---
 USERS_PATH = "users.json"
 UPLOADS_DIR = "uploads" 
@@ -912,6 +924,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
