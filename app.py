@@ -6,7 +6,7 @@ import time
 
 # --- Constantes do Aplicativo (Ajuste se necessário) ---
 SHEET_NAME = "Denuncias" 
-SPREADSHEET_URL = st.secrets["spreadsheet_url"]
+SPREADSHEET_URL = st.secrets["general"]["spreadsheet_url"]
 
 # --- 1. CONFIGURAÇÃO DA CONEXÃO GSPREAD (USANDO @st.cache_resource) ---
 
@@ -174,4 +174,5 @@ def main():
 # Executa o aplicativo
 if __name__ == "__main__":
     main()
+
 
