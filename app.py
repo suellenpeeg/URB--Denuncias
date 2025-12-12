@@ -59,10 +59,12 @@ if not os.path.exists(UPLOADS_DIR):
 
 # ---------------------- Google Sheets Connection (Singleton) ----------------------
 
+# ---------------------- Google Sheets Connection (Singleton) ----------------------
+
 class SheetsClient:
     """Gerencia o cliente gspread, substituindo o @st.cache_resource."""
     _gc = None
-    
+
     @classmethod
     def get_client(cls):
         if cls._gc is None:
@@ -70,7 +72,7 @@ class SheetsClient:
                 # 1. Carrega as credenciais da conta de serviço
                 secrets = st.secrets["gcp_service_account"]
 
-                # Corrige a private_key (converte \n em quebra real, obrigatório)
+                # Corrige a private_key (converte '\n' literal em quebra real)
                 private_key = secrets["private_key"].replace("\\n", "\n")
 
                 info = {
@@ -93,25 +95,12 @@ class SheetsClient:
             except KeyError as e:
                 st.error(f"Erro de Secrets: Falta a chave {e} no bloco [gcp_service_account].")
                 return None
+
             except Exception as e:
-                print("DEBUG GSPREAD ERROR:", e)    
+                print("DEBUG GSPREAD ERROR:", e)
                 st.error("Erro fatal na autenticação GSheets.")
                 return None
-        
-        return cls._gc
-                
-                # 2. Cria o cliente
-                cls._gc = gspread.service_account_from_dict(info)
-                # st.success("Conexão GSheets estabelecida com sucesso.", icon="✅") # Removido para evitar re-renderização desnecessária
-                
-            except KeyError as e:
-                st.error(f"Erro de Secrets: Falta a chave {e} no bloco [gcp_service_account].")
-                return None
-            except Exception as e:
-                # MUDANÇA TEMPORÁRIA: Imprime o erro completo no console do Streamlit Cloud	
-                print("DEBUG GSPREAD ERROR:", e)	
-                st.error("Erro fatal na autenticação GSheets.") # Mensagem na tela continua genérica
-                return None
+
         return cls._gc
 
 
@@ -923,6 +912,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
