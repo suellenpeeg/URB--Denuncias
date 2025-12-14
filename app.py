@@ -94,7 +94,7 @@ class SheetsClient:
                     "project_id": secrets["project_id"],
                     "private_key_id": secrets["private_key_id"],
                     "private_key": private_key,
-                    "client_email": secrets["client_email"],
+                    "client_email": secrets["streamlit-fiscalizacao@nice-dispatcher-481000-h9.iam.gserviceaccount.com"],
                     "client_id": secrets["client_id"],
                     "auth_uri": secrets["auth_uri"],
                     "token_uri": secrets["token_uri"],
@@ -938,6 +938,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
