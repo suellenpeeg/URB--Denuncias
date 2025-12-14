@@ -11,10 +11,6 @@ from PIL import Image
 import gspread
 from gspread.exceptions import WorksheetNotFound, SpreadsheetNotFound
 
-sh = gc.open_by_key("1b8HQ8fVlPN2QPjcRxBKwqu9tEyJCnDvYPzJsPjEMLuA")
-
-st.success("Planilha aberta com sucesso!")
-
 # Import FPDF (Geração de PDF estável)
 from fpdf import FPDF 
 
@@ -941,6 +937,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
