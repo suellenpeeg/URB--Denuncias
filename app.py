@@ -85,7 +85,7 @@ class SheetsClient:
                 secrets = st.secrets["gcp_service_account"]
 
                 # Corrige a private_key (converte '\n' literal em quebra real)
-                private_key = secrets["private_key"]
+                private_key = secrets["private_key"].replace("\\n", "\n")
 
                 info = {
                "type": secrets["type"],
@@ -927,6 +927,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
