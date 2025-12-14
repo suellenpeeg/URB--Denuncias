@@ -125,11 +125,7 @@ class SheetsClient:
                 return None
 
         return cls._gc
-        st.write("Email da service account:", secrets["client_email"])
-
-        sh = gc.open_by_key("1b8HQ8fVlPN2QPjcRxBKwqu9tEyJCnDvYPzJsPjEMLuA")
-        st.success("PLANILHA ABERTA COM SUCESSO")
-
+    
 
 # ---------------------- Funções de Manipulação de Dados (Adaptadas) ----------------------
 
@@ -140,7 +136,10 @@ def load_data_from_sheet(sheet_name): # REMOVIDO gc do argumento
     # Obtém o cliente Singleton (não haseável)
     gc = SheetsClient.get_client()
     required_cols = ['id', 'external_id', 'created_at', 'origem', 'tipo', 'rua', 'numero', 'bairro', 'zona', 'latitude', 'longitude', 'descricao', 'fotos', 'quem_recebeu', 'status', 'acao_noturna', 'reincidencias']
-
+    files = gc.openall()
+    st.write("PLANILHAS VISÍVEIS PARA A SERVICE ACCOUNT:")
+    st.write([f.title for f in files])
+    st.stop()
     if not gc:
         return pd.DataFrame(columns=required_cols) 
 
@@ -942,6 +941,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
