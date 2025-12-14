@@ -9,6 +9,7 @@ from PIL import Image
 
 # Import Google Sheets
 import gspread
+from google.oauth2 import service_account
 from gspread.exceptions import WorksheetNotFound, SpreadsheetNotFound
 
 # Import FPDF (Geração de PDF estável)
@@ -937,6 +938,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
