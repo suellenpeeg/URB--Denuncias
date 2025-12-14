@@ -88,11 +88,18 @@ class SheetsClient:
                 private_key = secrets["private_key"]
 
                 info = {
-                "type": secrets["type"],
-                "project_id": secrets["project_id"],
-                "private_key_id": secrets["private_key_id"],
-                "private_key": private_key, # Usa a chave limpa
-                }
+               "type": secrets["type"],
+               "project_id": secrets["project_id"],
+               "private_key_id": secrets["private_key_id"],
+               "private_key": private_key,
+               "client_email": secrets["client_email"],
+               "client_id": secrets["client_id"],
+               "auth_uri": secrets["auth_uri"],
+               "token_uri": secrets["token_uri"],
+               "auth_provider_x509_cert_url": secrets["auth_provider_x509_cert_url"],
+               "client_x509_cert_url": secrets["client_x509_cert_url"],
+               "universe_domain": secrets["universe_domain"],
+               }
 
                 # 2. Cria o cliente gspread
                 cls._gc = gspread.service_account_from_dict(info)
@@ -920,6 +927,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
