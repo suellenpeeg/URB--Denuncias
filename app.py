@@ -10,8 +10,6 @@ from PIL import Image
 # Import Google Sheets
 import gspread
 from gspread.exceptions import WorksheetNotFound, SpreadsheetNotFound
-st.write("Service account:", st.secrets["gcp_service_account"]["client_email"])
-st.write("Tentando abrir planilha...")
 
 sh = gc.open_by_key("1b8HQ8fVlPN2QPjcRxBKwqu9tEyJCnDvYPzJsPjEMLuA")
 
@@ -108,7 +106,20 @@ class SheetsClient:
                }
 
                 # 2. Cria o cliente gspread
-                cls._gc = gspread.service_account_from_dict(info)
+                from google.oauth2 import service_account
+
+                SCOPES = [
+               "https://www.googleapis.com/auth/spreadsheets",
+               "https://www.googleapis.com/auth/drive"
+                ]
+
+                credentials = service_account.Credentials.from_service_account_info(
+                info,
+                scopes=SCOPES
+                )
+
+            cls._gc = gspread.authorize(credentials)
+
 
             except KeyError as e:
                 st.error(f"Erro de Secrets: Falta a chave {e} no bloco [gcp_service_account].")
@@ -933,6 +944,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
