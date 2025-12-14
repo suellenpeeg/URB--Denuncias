@@ -110,7 +110,7 @@ class SheetsClient:
 
             except Exception as e:
                 print("DEBUG GSPREAD ERROR:", e)
-                st.error("Erro fatal na autenticação GSheets.")
+                st.error(f"Erro fatal na autenticação GSheets: {str(e)}")
                 return None
 
         return cls._gc
@@ -927,6 +927,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
