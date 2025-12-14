@@ -78,6 +78,9 @@ if not os.path.exists(UPLOADS_DIR):
 # ---------------------- Google Sheets Connection (Singleton) ----------------------
 
 class SheetsClient:
+   from google.oauth2 import service_account
+
+class SheetsClient:
     """Gerencia o cliente gspread, substituindo o @st.cache_resource."""
     _gc = None
 
@@ -85,49 +88,43 @@ class SheetsClient:
     def get_client(cls):
         if cls._gc is None:
             try:
-                # 1. Carrega as credenciais da conta de serviço
                 secrets = st.secrets["gcp_service_account"]
 
-                # Corrige a private_key (converte '\n' literal em quebra real)
                 private_key = secrets["private_key"].replace("\\n", "\n")
 
                 info = {
-               "type": secrets["type"],
-               "project_id": secrets["project_id"],
-               "private_key_id": secrets["private_key_id"],
-               "private_key": private_key,
-               "client_email": secrets["client_email"],
-               "client_id": secrets["client_id"],
-               "auth_uri": secrets["auth_uri"],
-               "token_uri": secrets["token_uri"],
-               "auth_provider_x509_cert_url": secrets["auth_provider_x509_cert_url"],
-               "client_x509_cert_url": secrets["client_x509_cert_url"],
-               "universe_domain": secrets["universe_domain"],
-               }
-
-                # 2. Cria o cliente gspread
-                from google.oauth2 import service_account
+                    "type": secrets["type"],
+                    "project_id": secrets["project_id"],
+                    "private_key_id": secrets["private_key_id"],
+                    "private_key": private_key,
+                    "client_email": secrets["client_email"],
+                    "client_id": secrets["client_id"],
+                    "auth_uri": secrets["auth_uri"],
+                    "token_uri": secrets["token_uri"],
+                    "auth_provider_x509_cert_url": secrets["auth_provider_x509_cert_url"],
+                    "client_x509_cert_url": secrets["client_x509_cert_url"],
+                    "universe_domain": secrets["universe_domain"],
+                }
 
                 SCOPES = [
-               "https://www.googleapis.com/auth/spreadsheets",
-               "https://www.googleapis.com/auth/drive"
+                    "https://www.googleapis.com/auth/spreadsheets",
+                    "https://www.googleapis.com/auth/drive",
                 ]
 
                 credentials = service_account.Credentials.from_service_account_info(
-                info,
-                scopes=SCOPES
+                    info,
+                    scopes=SCOPES,
                 )
 
-            cls._gc = gspread.authorize(credentials)
-
+                cls._gc = gspread.authorize(credentials)
 
             except KeyError as e:
                 st.error(f"Erro de Secrets: Falta a chave {e} no bloco [gcp_service_account].")
                 return None
 
             except Exception as e:
-                print("DEBUG GSPREAD ERROR:", e)
-                st.error(f"Erro fatal na autenticação GSheets: {str(e)}")
+                st.error("Erro fatal na autenticação com Google Sheets")
+                st.code(repr(e))
                 return None
 
         return cls._gc
@@ -944,6 +941,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
