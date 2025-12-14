@@ -87,6 +87,13 @@ class SheetsClient:
                 # Corrige a private_key (converte '\n' literal em quebra real)
                 private_key = secrets["private_key"]
 
+                info = {
+                "type": secrets["type"],
+                "project_id": secrets["project_id"],
+                "private_key_id": secrets["private_key_id"],
+                "private_key": private_key, # Usa a chave limpa
+                }
+
                 # 2. Cria o cliente gspread
                 cls._gc = gspread.service_account_from_dict(info)
 
