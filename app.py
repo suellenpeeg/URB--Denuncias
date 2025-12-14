@@ -140,7 +140,7 @@ def load_data_from_sheet(sheet_name): # REMOVIDO gc do argumento
         return pd.DataFrame(columns=required_cols) 
 
     try:
-        sh = gc.open_by_key("1b8HQ8fVlPN2QPjcRxBKwqu9tEyJCnDvYPzJsPjEMLuA")
+        sh = gc.open_by_key("1lb5GjBpqbbgm_gTHlITdF1MyrNPQWCedRHhZoafnUEM")
         worksheet = sh.worksheet(sheet_name)
         data = worksheet.get_all_records()
         df = pd.DataFrame(data)
@@ -937,6 +937,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
