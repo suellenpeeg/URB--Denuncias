@@ -261,8 +261,9 @@ def update_denuncia_full(id_, new_data):
     idx = df[df['id'] == id_].index
     
     if not idx.empty:
-        # Merge os dados mantendo o ID e External ID (e colunas de controle)
-        df.loc[idx, new_data.keys()] = new_data.values()
+        # CORREÇÃO: Usar list() para converter keys e values em listas,
+        # resolvendo o TypeError('Object of type dict_values is not JSON serializable')
+        df.loc[idx, list(new_data.keys())] = list(new_data.values())
         
         # Salvar no Sheets (Chamada corrigida)
         update_data_in_sheet(SHEET_NAME, df)
@@ -937,6 +938,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
