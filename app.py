@@ -667,103 +667,149 @@ if page == 'Registro da denuncia':
 
 
 # ---------------------- Page: Historico ----------------------
+# ---------------------- Page: Historico (CORRIGIDO) ----------------------
 if page == 'Historico':
     st.header('Histórico de Denúncias')
-    
-    # Limpar estados de edição/reincidência/download ao mudar de página
-    if 'edit_mode_id' in st.session_state: del st.session_state['edit_mode_id']
-    if 'reinc_mode_id' in st.session_state: del st.session_state['reinc_mode_id']
-    if 'download_pdf_data' in st.session_state: 
-        del st.session_state['download_pdf_data']
-        del st.session_state['download_pdf_id']
 
+    # === CONTROLE DE TROCA DE PÁGINA ===
+    if st.session_state.get('last_page') != 'Historico':
+        st.session_state.pop('edit_mode_id', None)
+        st.session_state.pop('reinc_mode_id', None)
+        st.session_state.pop('last_edited_pdf', None)
+        st.session_state.pop('download_pdf_data', None)
+        st.session_state.pop('download_pdf_id', None)
 
+    st.session_state['last_page'] = 'Historico'
+
+    # === CARREGAR DADOS ===
     df = fetch_all_denuncias_df()
-    
+
     if df.empty:
         st.info('Nenhuma denúncia registrada ainda.')
         st.stop()
 
-    # Garantir que 'id' é numérico
+    # Garantir ID numérico
     df['id'] = pd.to_numeric(df['id'], errors='coerce')
     df = df.dropna(subset=['id']).astype({'id': int})
-    
+
     display_df = df.copy()
     display_df['created_at'] = pd.to_datetime(display_df['created_at'], errors='coerce')
-    # Ajuste de erro: 'dias_passados' só pode ser calculado se 'created_at' for válido
-    valid_dates = display_df['created_at'].dropna()
-    display_df['dias_passados'] = pd.Series(dtype='int') # Inicializa a coluna
-    display_df.loc[valid_dates.index, 'dias_passados'] = (pd.Timestamp(datetime.now()) - valid_dates).dt.days
-    display_df['dias_passados'] = display_df['dias_passados'].fillna(0).astype(int)
 
-    # Campo para indicar se tem reincidências
-    display_df['Tem Reincidência'] = display_df['reincidencias'].apply(lambda x: '✅ Sim' if x else '❌ Não')
-    display_df['Ação Noturna'] = display_df['acao_noturna'].apply(lambda x: '🌙 Sim' if x else 'Não')
+    display_df['dias_passados'] = (
+        pd.Timestamp.now() - display_df['created_at']
+    ).dt.days.fillna(0).astype(int)
 
-    # Filtros
+    display_df['Tem Reincidência'] = display_df['reincidencias'].apply(
+        lambda x: '✅ Sim' if x else '❌ Não'
+    )
+    display_df['Ação Noturna'] = display_df['acao_noturna'].apply(
+        lambda x: '🌙 Sim' if x else 'Não'
+    )
+
+    # === FILTROS ===
     st.subheader('Pesquisar / Filtrar')
     cols = st.columns(4)
+
     q_ext = cols[0].text_input('Id (ex: 0001/2025)')
-    q_status = cols[1].selectbox('Status', options=['Todos'] + OPCOES_STATUS)
-    q_acao_noturna = cols[2].selectbox('Ação Noturna', options=['Todos', 'Sim', 'Não'])
+    q_status = cols[1].selectbox('Status', ['Todos'] + OPCOES_STATUS)
+    q_acao = cols[2].selectbox('Ação Noturna', ['Todos', 'Sim', 'Não'])
     q_text = cols[3].text_input('Texto na descrição')
 
-    mask = pd.Series([True]*len(display_df))
+    mask = pd.Series(True, index=display_df.index)
+
     if q_ext:
-        mask = mask & display_df['external_id'].str.contains(q_ext, na=False)
-    if q_status and q_status != 'Todos':
-        mask = mask & (display_df['status'] == q_status)
-    if q_acao_noturna == 'Sim':
-        mask = mask & (display_df['acao_noturna'] == True)
-    elif q_acao_noturna == 'Não':
-        mask = mask & (display_df['acao_noturna'] == False)
+        mask &= display_df['external_id'].astype(str).str.contains(q_ext, na=False)
+
+    if q_status != 'Todos':
+        mask &= display_df['status'] == q_status
+
+    if q_acao == 'Sim':
+        mask &= display_df['acao_noturna'] is True
+    elif q_acao == 'Não':
+        mask &= display_df['acao_noturna'] is False
+
     if q_text:
-        main_desc_mask = display_df['descricao'].astype(str).str.contains(q_text, na=False, case=False)
-        reinc_desc_mask = display_df['reincidencias'].astype(str).str.contains(q_text, na=False, case=False)
-        mask = mask & (main_desc_mask | reinc_desc_mask)
+        mask &= (
+            display_df['descricao'].astype(str).str.contains(q_text, case=False, na=False)
+            | display_df['reincidencias'].astype(str).str.contains(q_text, case=False, na=False)
+        )
 
-    filtered = display_df[mask].sort_values(by='id', ascending=False)
+    filtered = display_df[mask].sort_values('id', ascending=False)
 
-    # Exibição
+    # === TABELA ===
     st.subheader(f'Resultados ({len(filtered)})')
-    
-    styled_df = filtered[['id','external_id','created_at','origem','tipo','bairro','Ação Noturna','Tem Reincidência', 'quem_recebeu','status','dias_passados']].copy()
-    styled_df['created_at'] = styled_df['created_at'].dt.strftime('%d/%m/%Y %H:%M')
 
-    st.dataframe(styled_df, use_container_width=True)
+    table_df = filtered[
+        ['id','external_id','created_at','origem','tipo','bairro',
+         'Ação Noturna','Tem Reincidência','quem_recebeu','status','dias_passados']
+    ].copy()
 
-    # Ações em Lote 
+    table_df['created_at'] = table_df['created_at'].dt.strftime('%d/%m/%Y %H:%M')
+
+    st.dataframe(table_df, use_container_width=True)
+
+    # === AÇÕES EM MASSA ===
     st.markdown('---')
-    sel_ids = st.multiselect('Selecione IDs para Ações em Massa', options=filtered['id'].tolist())
-    
+    sel_ids = st.multiselect(
+        'Selecione IDs para ações em massa',
+        options=filtered['id'].tolist()
+    )
+
     if sel_ids:
-        action_col1, action_col2, action_col3, action_col4 = st.columns(4)
-        with action_col1:
-            if st.button('✅ Marcar como Concluída'):
+        cols = st.columns(4)
+
+        with cols[0]:
+            if st.button('✅ Concluir'):
                 for i in sel_ids:
                     update_denuncia_full(i, {'status': 'Concluída'})
+                fetch_all_denuncias_df.clear()
                 st.success('Atualizado!')
                 st.rerun()
-        with action_col2:
-            if st.button('🔄 Marcar como Pendente'):
+
+        with cols[1]:
+            if st.button('🔄 Pendente'):
                 for i in sel_ids:
                     update_denuncia_full(i, {'status': 'Pendente'})
+                fetch_all_denuncias_df.clear()
                 st.success('Atualizado!')
                 st.rerun()
-        with action_col3:
-            if st.button('🗑️ Excluir Selecionados'):
+
+        with cols[2]:
+            if st.button('🗑️ Excluir'):
                 for i in sel_ids:
                     delete_denuncia(i)
+                fetch_all_denuncias_df.clear()
                 st.success('Excluído(s)!')
                 st.rerun()
-        with action_col4:
-            if st.button('⬇️ Exportar CSV'):
-                export_df = df[df['id'].isin(sel_ids)].copy()
-                csv = export_df.to_csv(index=False).encode('utf-8')
-                st.download_button('Baixar CSV', csv, file_name='denuncias_selecionadas.csv', mime='text/csv')
 
+        with cols[3]:
+            csv = df[df['id'].isin(sel_ids)].to_csv(index=False).encode('utf-8')
+            st.download_button('⬇️ CSV', csv, 'denuncias.csv', 'text/csv')
+
+    # === AÇÕES POR ID ===
     st.markdown('---')
-    
+    st.subheader('Editar ou Registrar Reincidência')
+
+    action_id = st.number_input(
+        'ID interno da denúncia',
+        min_value=1,
+        step=1
+    )
+
+    col_e, col_r = st.columns(2)
+
+    with col_e:
+        if st.button('✍️ Editar'):
+            st.session_state['edit_mode_id'] = action_id
+            st.session_state.pop('reinc_mode_id', None)
+            st.rerun()
+
+    with col_r:
+        if st.button('➕ Reincidência'):
+            st.session_state['reinc_mode_id'] = action_id
+            st.session_state.pop('edit_mode_id', None)
+            st.rerun()
+
     # ---------------------- Editar Denúncia / Adicionar Reincidência ----------------------
     st.subheader('Opções por ID: Editar / Reincidência')
     edit_id = st.number_input('ID interno da denúncia', min_value=1, step=1, key='action_id_input')
@@ -938,6 +984,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
