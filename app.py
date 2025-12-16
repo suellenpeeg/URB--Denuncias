@@ -109,27 +109,24 @@ def validate_denuncia(data):
 
 
 def load_sheet(sheet_name):
-    # 🔒 Verificação defensiva do secret da planilha
-    if "spreadsheet_key" not in st.secrets:
-        st.error("❌ Secret 'spreadsheet_key' não encontrado. Configure em Settings → Secrets no Streamlit Cloud.")
+    # 🔑 Lê a chave da planilha DENTRO do bloco gcp_service_account (mais estável no Streamlit Cloud)
+    secrets = st.secrets.get("gcp_service_account")
+    if not secrets or "spreadsheet_key" not in secrets:
+        st.error(
+            "❌ A chave 'spreadsheet_key' não foi encontrada dentro de [gcp_service_account] nos Secrets.\n"
+            "Abra Manage app → Settings → Secrets e mova a chave para dentro do bloco gcp_service_account."
+        )
         st.stop()
+
+    spreadsheet_key = secrets["spreadsheet_key"]
 
     gc = SheetsClient.get_client()
-    spreadsheet_key = st.secrets.get("spreadsheet_key")
-    if not spreadsheet_key:
-        st.error("❌ Secret 'spreadsheet_key' não carregado pelo Streamlit Cloud. Verifique Settings → Secrets e reinicie o app.")
-        st.stop()
-
     sh = gc.open_by_key(spreadsheet_key)
+
     try:
         ws = sh.worksheet(sheet_name)
     except WorksheetNotFound:
-        ws = sh.add_worksheet(
-            sheet_name,
-            rows=100,
-            cols=20
-        )
-        # Cabeçalho conforme o schema correto
+        ws = sh.add_worksheet(sheet_name, rows=100, cols=20)
         header = list(DENUNCIA_SCHEMA.keys()) if sheet_name == SHEET_DENUNCIAS else list(REINCIDENCIA_SCHEMA.keys())
         ws.append_row(header)
 
@@ -137,12 +134,16 @@ def load_sheet(sheet_name):
 
 
 def save_sheet(sheet_name, df):
-    gc = SheetsClient.get_client()
-    spreadsheet_key = st.secrets.get("spreadsheet_key")
-    if not spreadsheet_key:
-        st.error("❌ Secret 'spreadsheet_key' não carregado pelo Streamlit Cloud. Verifique Settings → Secrets e reinicie o app.")
+    secrets = st.secrets.get("gcp_service_account")
+    if not secrets or "spreadsheet_key" not in secrets:
+        st.error(
+            "❌ A chave 'spreadsheet_key' não foi encontrada dentro de [gcp_service_account] nos Secrets."
+        )
         st.stop()
 
+    spreadsheet_key = secrets["spreadsheet_key"]
+
+    gc = SheetsClient.get_client()
     sh = gc.open_by_key(spreadsheet_key)
     ws = sh.worksheet(sheet_name)
     ws.clear()
@@ -274,5 +275,6 @@ if page == 'Reincidências':
             st.success('Reincidência registrada')
             del st.session_state.reinc_id
             st.rerun()
+
 
 
