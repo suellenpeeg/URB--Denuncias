@@ -75,14 +75,14 @@ class SheetsClient:
            secrets = st.secrets["gcp_service_account"]
            info = dict(secrets)
 
-            creds = service_account.Credentials.from_service_account_info(
+           creds = service_account.Credentials.from_service_account_info(
                 info,
                 scopes=[
                     "https://www.googleapis.com/auth/spreadsheets",
                     "https://www.googleapis.com/auth/drive",
                 ],
             )
-            cls._gc = gspread.authorize(creds)
+           cls._gc = gspread.authorize(creds)
 
         return cls._gc
 
@@ -276,6 +276,7 @@ if page == 'Reincidências':
             st.success('Reincidência registrada')
             del st.session_state.reinc_id
             st.rerun()
+
 
 
 
