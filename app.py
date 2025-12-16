@@ -72,10 +72,8 @@ class SheetsClient:
     @classmethod
     def get_client(cls):
         if cls._gc is None:
-            secrets = st.secrets["gcp_service_account"]
-
-            # NÃO mexer na private_key
-            info = dict(secrets)
+           secrets = st.secrets["gcp_service_account"]
+           info = dict(secrets)
 
             creds = service_account.Credentials.from_service_account_info(
                 info,
@@ -278,6 +276,7 @@ if page == 'Reincidências':
             st.success('Reincidência registrada')
             del st.session_state.reinc_id
             st.rerun()
+
 
 
 
