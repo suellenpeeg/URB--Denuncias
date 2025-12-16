@@ -72,33 +72,6 @@ class SheetsClient:
     @classmethod
     def get_client(cls):
         if cls._gc is None:
-           secrets = st.secrets["gcp_service_account"]
-           info = dict(secrets) # <--- ERRO AQUI: Ele transforma todos os secrets em um dicionário.
-
-           creds = service_account.Credentials.from_service_account_info(
-                info,
-                scopes=[
-                    "https://www.googleapis.com/auth/spreadsheets",
-                    "https://www.googleapis.com/auth/drive",
-                ],
-            )
-           cls._gc = gspread.authorize(creds)
-
-📝 Correção Principal: Formato da private_key
-Você precisa garantir que a private_key dentro do dicionário info contenha as quebras de linha reais (\n).
-
-Solução: Modifique o método SheetsClient.get_client para corrigir a formatação da chave privada antes de criar as credenciais.
-
-Python
-
-# Altere o método get_client para o seguinte:
-
-class SheetsClient:
-    _gc = None
-
-    @classmethod
-    def get_client(cls):
-        if cls._gc is None:
            try:
                secrets = st.secrets["gcp_service_account"]
                info = dict(secrets)
@@ -319,6 +292,7 @@ if page == 'Reincidências':
             st.success('Reincidência registrada')
             del st.session_state.reinc_id
             st.rerun()
+
 
 
 
