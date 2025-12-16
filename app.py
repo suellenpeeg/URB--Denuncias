@@ -69,7 +69,7 @@ OPCOES_FISCAIS = ['EDVALDO','PATRICIA','RAIANY','SUELLEN']
 class SheetsClient:
     _gc = None
 
-@classmethod
+    @classmethod
     def get_client(cls):
         if cls._gc is None:
            secrets = st.secrets["gcp_service_account"]
@@ -320,6 +320,7 @@ if page == 'Reincidências':
             st.success('Reincidência registrada')
             del st.session_state.reinc_id
             st.rerun()
+
 
 
 
