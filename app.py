@@ -83,7 +83,6 @@ class SheetsClient:
                 ],
             )
            cls._gc = gspread.authorize(creds)
-Ao usar info = dict(secrets), você está criando um dicionário onde o valor da chave private_key é lido diretamente do arquivo de segredos (Secrets) do Streamlit. O problema é que o Streamlit, ao armazenar o JSON do Service Account, geralmente insere caracteres de escape (\n) na private_key, e a biblioteca google-auth exige que esses \n sejam a quebra de linha real.
 
 📝 Correção Principal: Formato da private_key
 Você precisa garantir que a private_key dentro do dicionário info contenha as quebras de linha reais (\n).
@@ -320,6 +319,7 @@ if page == 'Reincidências':
             st.success('Reincidência registrada')
             del st.session_state.reinc_id
             st.rerun()
+
 
 
 
