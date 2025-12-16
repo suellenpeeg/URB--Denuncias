@@ -254,21 +254,25 @@ def fetch_denuncia_by_id(id_):
     return None
 
 def update_denuncia_full(id_, new_data):
-    """Atualiza um registro existente no Sheets."""
+    """Atualiza um registro existente no Sheets (seguro para listas/dicts)."""
     df = fetch_all_denuncias_df()
-    # Garante que o df['id'] é numérico para o índice
+
     df['id'] = pd.to_numeric(df['id'], errors='coerce')
     idx = df[df['id'] == id_].index
-    
-    if not idx.empty:
-        # CORREÇÃO: Usar list() para converter keys e values em listas,
-        # resolvendo o TypeError('Object of type dict_values is not JSON serializable')
-        df.loc[idx, list(new_data.keys())] = list(new_data.values())
-        
-        # Salvar no Sheets (Chamada corrigida)
-        update_data_in_sheet(SHEET_NAME, df)
-        return True
-    return False
+
+    if idx.empty:
+        return False
+
+    # 🔑 ATUALIZA COLUNA POR COLUNA (evita erro do pandas)
+    for col, value in new_data.items():
+        df.loc[idx, col] = [value]
+
+    update_data_in_sheet(SHEET_NAME, df)
+
+    # Limpa cache para refletir mudanças
+    fetch_all_denuncias_df.clear()
+
+    return True
 
 def delete_denuncia(id_):
     """Deleta um registro do Sheets."""
@@ -984,6 +988,7 @@ if page == 'Historico':
                 del st.session_state['download_pdf_data']
                 del st.session_state['download_pdf_id']
                 st.rerun()
+
 
 
 
