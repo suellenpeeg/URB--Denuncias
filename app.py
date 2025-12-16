@@ -28,7 +28,7 @@ from fpdf import FPDF
 st.set_page_config(page_title="URB Fiscalização - Denúncias", layout="wide")
 
 # ---------------------- CONSTANTES ----------------------
-SHEET_DENUNCIAS = "denuncias"
+SHEET_DENUNCIAS = "denuncias_registro"
 SHEET_REINCIDENCIAS = "reincidencias"
 USERS_PATH = "users.json"
 
@@ -310,6 +310,7 @@ if page == 'Reincidências':
             st.success('Reincidência registrada')
             del st.session_state.reinc_id
             st.rerun()
+
 
 
 
