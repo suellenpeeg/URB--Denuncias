@@ -211,9 +211,20 @@ page = st.sidebar.selectbox("Menu", ["Dashboard","Registro","Histórico","Reinci
 # ---------------------- DASHBOARD ----------------------
 if page == 'Dashboard':
     df = load_sheet(SHEET_DENUNCIAS)
-    st.subheader("📊 Dashboard")
-    for status in OPCOES_STATUS:
+
+if df is not None and not df.empty and 'status' in df.columns:
+    # O código original do Dashboard
+    STATUS_OPTS = ['Pendente', 'Concluída', 'Cancelada']
+
+    for status in STATUS_OPTS:
+        # AQUI É IMPORTANTE: len(df[df['status']==status])
+        # Se você está usando o Pandas, a sintaxe está correta. 
+        # A falha é na presença da coluna.
         st.metric(status, len(df[df['status']==status]))
+
+else:
+    # Mensagem de erro se o DataFrame não foi carregado corretamente
+    st.error("Não foi possível carregar os dados da planilha de denúncias ou a coluna 'status' não foi encontrada. Verifique as credenciais e o nome das colunas da planilha.")
 
 # ---------------------- REGISTRO ----------------------
 if page == 'Registro':
@@ -292,6 +303,7 @@ if page == 'Reincidências':
             st.success('Reincidência registrada')
             del st.session_state.reinc_id
             st.rerun()
+
 
 
 
