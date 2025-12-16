@@ -209,15 +209,29 @@ st.sidebar.title("URB Fiscalização")
 page = st.sidebar.selectbox("Menu", ["Dashboard","Registro","Histórico","Reincidências"])
 
 # ---------------------- DASHBOARD ----------------------
-if page == 'Dashboard':
+if page == 'Dashboard': # OU QUALQUER NOME QUE SUA PÁGINA PRINCIPAL TENHA
+    st.header('Dashboard de Denúncias')
+    
+    # 1. Carrega o DataFrame DENTRO do escopo da página
     df = load_sheet(SHEET_DENUNCIAS)
-    # ----------------- INÍCIO DO DEBUG -----------------
-st.header("🛠️ STATUS DE CARREGAMENTO DE DADOS (DEBUG)")
-st.write(f"DataFrame carregado com {len(df)} linhas.")
-st.write(f"Colunas encontradas: {list(df.columns)}")
-st.write(f"Primeiras 5 linhas do DF (Head):")
-st.dataframe(df.head())
-# ----------------- FIM DO DEBUG -----------------
+
+    # 2. SE O DF FOI CARREGADO, FAZ O DEBUG
+    st.header("🛠️ STATUS DE CARREGAMENTO DE DADOS (DEBUG)")
+    
+    # Verifique a variável df antes de usá-la
+    if df is not None:
+        st.write(f"DataFrame carregado com {len(df)} linhas.")
+        st.write(f"Colunas encontradas: {list(df.columns)}")
+        st.dataframe(df.head())
+    else:
+        st.error("Falha na autenticação ou carregamento. DataFrame é None.")
+
+    # 3. A LÓGICA DO DASHBOARD SÓ DEVE SER EXECUTADA SE O DF FOR VÁLIDO
+    if df is not None and not df.empty and 'status' in df.columns:
+        # Seu código das métricas (st.metric) aqui:
+        # ...
+    else:
+        st.error("Não foi possível carregar os dados da planilha de denúncias ou a coluna 'status' não foi encontrada. Verifique as credenciais e o nome das colunas da planilha.")
 
 if df is not None and not df.empty and 'status' in df.columns:
     # O código original do Dashboard
@@ -310,6 +324,7 @@ if page == 'Reincidências':
             st.success('Reincidência registrada')
             del st.session_state.reinc_id
             st.rerun()
+
 
 
 
