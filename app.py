@@ -109,19 +109,41 @@ def validate_denuncia(data):
 
 
 def load_sheet(sheet_name):
+    # 🔒 Verificação defensiva do secret da planilha
+    if "spreadsheet_key" not in st.secrets:
+        st.error("❌ Secret 'spreadsheet_key' não encontrado. Configure em Settings → Secrets no Streamlit Cloud.")
+        st.stop()
+
     gc = SheetsClient.get_client()
-    sh = gc.open_by_key(st.secrets["spreadsheet_key"])
+    spreadsheet_key = st.secrets.get("spreadsheet_key")
+    if not spreadsheet_key:
+        st.error("❌ Secret 'spreadsheet_key' não carregado pelo Streamlit Cloud. Verifique Settings → Secrets e reinicie o app.")
+        st.stop()
+
+    sh = gc.open_by_key(spreadsheet_key)
     try:
         ws = sh.worksheet(sheet_name)
     except WorksheetNotFound:
-        ws = sh.add_worksheet(sheet_name, 100, 20)
-        ws.append_row(list(DENUNCIA_SCHEMA.keys()) if sheet_name == SHEET_DENUNCIAS else list(REINCIDENCIA_SCHEMA.keys()))
+        ws = sh.add_worksheet(
+            sheet_name,
+            rows=100,
+            cols=20
+        )
+        # Cabeçalho conforme o schema correto
+        header = list(DENUNCIA_SCHEMA.keys()) if sheet_name == SHEET_DENUNCIAS else list(REINCIDENCIA_SCHEMA.keys())
+        ws.append_row(header)
+
     return pd.DataFrame(ws.get_all_records())
 
 
 def save_sheet(sheet_name, df):
     gc = SheetsClient.get_client()
-    sh = gc.open_by_key(st.secrets["spreadsheet_key"])
+    spreadsheet_key = st.secrets.get("spreadsheet_key")
+    if not spreadsheet_key:
+        st.error("❌ Secret 'spreadsheet_key' não carregado pelo Streamlit Cloud. Verifique Settings → Secrets e reinicie o app.")
+        st.stop()
+
+    sh = gc.open_by_key(spreadsheet_key)
     ws = sh.worksheet(sheet_name)
     ws.clear()
     ws.update([df.columns.tolist()] + df.values.tolist())
@@ -252,3 +274,5 @@ if page == 'Reincidências':
             st.success('Reincidência registrada')
             del st.session_state.reinc_id
             st.rerun()
+
+
