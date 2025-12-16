@@ -66,6 +66,9 @@ OPCOES_ZONA = ['NORTE','SUL','LESTE','OESTE','CENTRO']
 OPCOES_FISCAIS = ['EDVALDO','PATRICIA','RAIANY','SUELLEN']
 
 # ---------------------- GOOGLE SHEETS ----------------------
+class SheetsClient:
+    _gc = None
+
 @classmethod
     def get_client(cls):
         if cls._gc is None:
@@ -317,6 +320,7 @@ if page == 'Reincidências':
             st.success('Reincidência registrada')
             del st.session_state.reinc_id
             st.rerun()
+
 
 
 
