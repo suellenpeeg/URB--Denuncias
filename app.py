@@ -66,14 +66,11 @@ OPCOES_ZONA = ['NORTE','SUL','LESTE','OESTE','CENTRO']
 OPCOES_FISCAIS = ['EDVALDO','PATRICIA','RAIANY','SUELLEN']
 
 # ---------------------- GOOGLE SHEETS ----------------------
-class SheetsClient:
-    _gc = None
-
-    @classmethod
+@classmethod
     def get_client(cls):
         if cls._gc is None:
            secrets = st.secrets["gcp_service_account"]
-           info = dict(secrets)
+           info = dict(secrets) # <--- ERRO AQUI: Ele transforma todos os secrets em um dicionário.
 
            creds = service_account.Credentials.from_service_account_info(
                 info,
@@ -83,9 +80,53 @@ class SheetsClient:
                 ],
             )
            cls._gc = gspread.authorize(creds)
+Ao usar info = dict(secrets), você está criando um dicionário onde o valor da chave private_key é lido diretamente do arquivo de segredos (Secrets) do Streamlit. O problema é que o Streamlit, ao armazenar o JSON do Service Account, geralmente insere caracteres de escape (\n) na private_key, e a biblioteca google-auth exige que esses \n sejam a quebra de linha real.
+
+📝 Correção Principal: Formato da private_key
+Você precisa garantir que a private_key dentro do dicionário info contenha as quebras de linha reais (\n).
+
+Solução: Modifique o método SheetsClient.get_client para corrigir a formatação da chave privada antes de criar as credenciais.
+
+Python
+
+# Altere o método get_client para o seguinte:
+
+class SheetsClient:
+    _gc = None
+
+    @classmethod
+    def get_client(cls):
+        if cls._gc is None:
+           try:
+               secrets = st.secrets["gcp_service_account"]
+               info = dict(secrets)
+
+               # >>> CORREÇÃO CRÍTICA AQUI <<<
+               # 1. Garante que 'private_key' existe
+               private_key = info.get("private_key")
+               if not private_key:
+                   raise KeyError("Chave 'private_key' não encontrada no Service Account.")
+
+               # 2. Substitui \n por quebras de linha reais, o que é exigido pelo Google
+               info["private_key"] = private_key.replace("\\n", "\n")
+               # FIM CORREÇÃO
+
+               creds = service_account.Credentials.from_service_account_info(
+                    info,
+                    scopes=[
+                        "https://www.googleapis.com/auth/spreadsheets",
+                        "https://www.googleapis.com/auth/drive",
+                    ],
+                )
+               cls._gc = gspread.authorize(creds)
+               
+           except Exception as e:
+               st.error(f"❌ Erro de Autenticação GSheets. Verifique a chave 'private_key' nos Secrets.")
+               st.code(repr(e))
+               # Retorna None em caso de falha de autenticação
+               return None 
 
         return cls._gc
-
 # ---------------------- UTILITIES ----------------------
 
 def normalize_record(rec, schema):
@@ -276,6 +317,7 @@ if page == 'Reincidências':
             st.success('Reincidência registrada')
             del st.session_state.reinc_id
             st.rerun()
+
 
 
 
