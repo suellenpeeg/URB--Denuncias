@@ -211,6 +211,13 @@ page = st.sidebar.selectbox("Menu", ["Dashboard","Registro","Histórico","Reinci
 # ---------------------- DASHBOARD ----------------------
 if page == 'Dashboard':
     df = load_sheet(SHEET_DENUNCIAS)
+    # ----------------- INÍCIO DO DEBUG -----------------
+st.header("🛠️ STATUS DE CARREGAMENTO DE DADOS (DEBUG)")
+st.write(f"DataFrame carregado com {len(df)} linhas.")
+st.write(f"Colunas encontradas: {list(df.columns)}")
+st.write(f"Primeiras 5 linhas do DF (Head):")
+st.dataframe(df.head())
+# ----------------- FIM DO DEBUG -----------------
 
 if df is not None and not df.empty and 'status' in df.columns:
     # O código original do Dashboard
@@ -303,6 +310,7 @@ if page == 'Reincidências':
             st.success('Reincidência registrada')
             del st.session_state.reinc_id
             st.rerun()
+
 
 
 
