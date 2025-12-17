@@ -7,7 +7,7 @@ import time
 from google.oauth2 import service_account
 from gspread.exceptions import WorksheetNotFound
 import gspread
-from fpdf import FPDF  # <--- Biblioteca do PDF
+from fpdf import FPDF
 
 # ============================================================
 # CONFIGURAÇÃO INICIAL
@@ -26,7 +26,7 @@ OPCOES_TIPO = ['Urbana','Ambiental','Urbana e Ambiental']
 OPCOES_ZONA = ['NORTE','SUL','LESTE','OESTE','CENTRO']
 OPCOES_FISCAIS_SELECT = ['EDVALDO','PATRICIA','RAIANY','SUELLEN']
 
-# SCHEMA RIGIDO (A ordem aqui TEM que ser a mesma da planilha)
+# SCHEMA RIGIDO
 DENUNCIA_SCHEMA = [
     'id', 'external_id', 'created_at', 'origem', 'tipo', 'rua', 
     'numero', 'bairro', 'zona', 'latitude', 'longitude', 
@@ -66,15 +66,21 @@ class SheetsClient:
         return cls._gc, cls._spreadsheet_key
 
 # ============================================================
-# FUNÇÃO GERADORA DE PDF (NOVA)
+# FUNÇÃO GERADORA DE PDF (BLINDADA)
 # ============================================================
+def clean_text(text):
+    """Remove caracteres incompatíveis com o PDF padrão (latin-1)"""
+    if text is None: return ""
+    # Converte para string, força codificação latin-1 e ignora erros/emojis
+    return str(text).encode('latin-1', 'replace').decode('latin-1')
+
 def gerar_pdf(dados):
     pdf = FPDF()
     pdf.add_page()
     
-    # Cabeçalho
+    # Títulos e Cabeçalhos (Sem acentos hardcoded para evitar erro de script)
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, f"ORDEM DE SERVIÇO - {dados['external_id']}", ln=True, align='C')
+    pdf.cell(0, 10, clean_text(f"ORDEM DE SERVICO - {dados['external_id']}"), ln=True, align='C')
     pdf.line(10, 20, 200, 20)
     pdf.ln(10)
     
@@ -82,43 +88,44 @@ def gerar_pdf(dados):
     pdf.set_font("Arial", size=12)
     
     campos = [
-        ("Data Abertura", dados['created_at']),
-        ("Status", dados['status']),
-        ("Tipo", dados['tipo']),
-        ("Origem", dados['origem']),
-        ("Fiscal Responsável", dados['quem_recebeu']),
-        ("Endereço", f"{dados['rua']}, {dados['numero']} - {dados['bairro']}"),
-        ("Zona", dados['zona']),
+        ("Data Abertura", dados.get('created_at', '')),
+        ("Status", dados.get('status', '')),
+        ("Tipo", dados.get('tipo', '')),
+        ("Origem", dados.get('origem', '')),
+        ("Fiscal Responsavel", dados.get('quem_recebeu', '')),
+        ("Endereco", f"{dados.get('rua','')} , {dados.get('numero','')} - {dados.get('bairro','')}"),
+        ("Zona", dados.get('zona', '')),
     ]
     
     for titulo, valor in campos:
         pdf.set_font("Arial", 'B', 12)
-        pdf.cell(50, 10, f"{titulo}:", border=0)
+        pdf.cell(50, 10, clean_text(f"{titulo}:"), border=0)
         pdf.set_font("Arial", '', 12)
-        
-        # Tratamento de caracteres especiais para o FPDF
-        valor_str = str(valor).encode('latin-1', 'replace').decode('latin-1')
-        pdf.cell(0, 10, valor_str, ln=True)
+        pdf.cell(0, 10, clean_text(valor), ln=True)
         
     pdf.ln(5)
     
     # Descrição
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "Descrição da Ocorrência:", ln=True)
+    pdf.cell(0, 10, clean_text("Descricao da Ocorrencia:"), ln=True)
     pdf.set_font("Arial", '', 12)
     
-    desc_str = str(dados['descricao']).encode('latin-1', 'replace').decode('latin-1')
-    pdf.multi_cell(0, 7, desc_str)
+    # Multi cell para quebra de linha automática
+    pdf.multi_cell(0, 7, clean_text(dados.get('descricao', '')))
     
     pdf.ln(20)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.cell(0, 10, "Assinatura do Fiscal", align='R')
+    pdf.cell(0, 10, clean_text("Assinatura do Fiscal"), align='R')
     
-    # Retorna os bytes do PDF
-    return pdf.output(dest='S').encode('latin-1')
+    # Retorna o binário do PDF de forma segura
+    try:
+        return pdf.output(dest='S').encode('latin-1')
+    except TypeError:
+        # Fallback para versões novas do FPDF
+        return pdf.output()
 
 # ============================================================
-# FUNÇÕES DE BANCO DE DADOS (SHEETS)
+# FUNÇÕES DE BANCO DE DADOS
 # ============================================================
 
 def get_worksheet(sheet_name):
@@ -141,23 +148,17 @@ def get_worksheet(sheet_name):
 def load_data(sheet_name):
     ws = get_worksheet(sheet_name)
     if not ws: return pd.DataFrame()
-    
     data = ws.get_all_records()
     df = pd.DataFrame(data)
+    # Preenche vazios com string vazia para evitar erros
     return df.fillna('')
 
 def add_row(sheet_name, row_dict, schema_order=None):
-    """
-    Adiciona linha garantindo a ordem das colunas para evitar o erro 'FALSE'
-    """
     ws = get_worksheet(sheet_name)
-    
     if schema_order:
-        # Força a ordem exata das colunas
         values = [str(row_dict.get(col, '')) for col in schema_order]
     else:
         values = [str(v) for v in row_dict.values()]
-        
     ws.append_row(values)
 
 def update_full_sheet(sheet_name, df):
@@ -257,7 +258,7 @@ if page == "Dashboard":
     df = load_data(SHEET_DENUNCIAS)
     
     if not df.empty and 'status' in df.columns:
-        # Pequena correção visual se tiver "FALSE" na planilha
+        # Correção visual do status 'FALSE'
         df['status'] = df['status'].replace('FALSE', 'Pendente').replace('False', 'Pendente')
 
         c1, c2, c3, c4 = st.columns(4)
@@ -313,14 +314,13 @@ elif page == "Registrar Denúncia":
                     'status': 'Pendente',
                     'acao_noturna': 'FALSE'
                 }
-                # AQUI ESTÁ A CORREÇÃO PRINCIPAL: FORÇA SCHEMA
                 add_row(SHEET_DENUNCIAS, record, DENUNCIA_SCHEMA)
                 st.success(f"Denúncia {ext_id} salva!")
                 time.sleep(1)
                 st.rerun()
 
 # ============================================================
-# PÁGINA 3: HISTÓRICO E EDIÇÃO (COM PDF)
+# PÁGINA 3: HISTÓRICO E EDIÇÃO
 # ============================================================
 elif page == "Histórico / Editar":
     st.title("🗂️ Gerenciar Denúncias")
@@ -330,7 +330,7 @@ elif page == "Histórico / Editar":
         st.warning("Nenhuma denúncia encontrada.")
         st.stop()
 
-    # --- ÁREA DE EDIÇÃO ---
+    # --- MODO DE EDIÇÃO ---
     if 'edit_id' in st.session_state:
         st.markdown("---")
         st.info(f"✏️ Editando registro ID: {st.session_state.edit_id}")
@@ -370,18 +370,16 @@ elif page == "Histórico / Editar":
     
     for idx, row in df_display.iterrows():
         with st.container(border=True):
-            # Layout 5 colunas: ID | Dados | Status | PDF | Editar
             cols = st.columns([1, 3, 1.2, 0.6, 0.6])
             
             cols[0].markdown(f"**{row['external_id']}**")
             cols[0].caption(row['created_at'])
             
             cols[1].write(f"📍 {row['rua']}, {row['numero']} - {row['bairro']}")
-            cols[1].caption(f"{row['tipo']} | {row['descricao'][:60]}...")
+            cols[1].caption(f"{row['tipo']} | {str(row['descricao'])[:60]}...")
             
-            # --- CORREÇÃO VISUAL DO STATUS ---
+            # Status Visual
             status_val = str(row['status'])
-            # Se for FALSE (erro antigo), mostra como Pendente visualmente
             if status_val.upper() == 'FALSE':
                 status_display = "Pendente"
                 color = "orange"
@@ -391,7 +389,7 @@ elif page == "Histórico / Editar":
             
             cols[2].markdown(f":{color}[**{status_display}**]")
             
-            # BOTÃO PDF
+            # BOTÃO PDF (Agora com debug de erro real)
             try:
                 pdf_bytes = gerar_pdf(row)
                 cols[3].download_button(
@@ -402,7 +400,8 @@ elif page == "Histórico / Editar":
                     key=f"pdf_{row['id']}"
                 )
             except Exception as e:
-                cols[3].error("Erro PDF")
+                # Mostra o erro real para facilitar o conserto se ainda der pau
+                cols[3].error(f"Erro: {e}")
 
             # BOTÃO EDITAR
             if cols[4].button("✏️", key=f"btn_{row['id']}"):
