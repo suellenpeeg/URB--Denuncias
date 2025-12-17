@@ -26,7 +26,7 @@ OPCOES_TIPO = ['Urbana','Ambiental','Urbana e Ambiental']
 OPCOES_ZONA = ['NORTE','SUL','LESTE','OESTE','CENTRO']
 OPCOES_FISCAIS_SELECT = ['EDVALDO','PATRICIA','RAIANY','SUELLEN']
 
-# SCHEMA RIGIDO
+# SCHEMAS
 DENUNCIA_SCHEMA = [
     'id', 'external_id', 'created_at', 'origem', 'tipo', 'rua', 
     'numero', 'bairro', 'zona', 'latitude', 'longitude', 
@@ -66,7 +66,7 @@ class SheetsClient:
         return cls._gc, cls._spreadsheet_key
 
 # ============================================================
-# FUNÇÃO GERADORA DE PDF (CORRIGIDA PARA BYTEARRAY)
+# FUNÇÃO GERADORA DE PDF (ÚNICA E ROBUSTA)
 # ============================================================
 def clean_text(text):
     """Remove caracteres incompatíveis com o PDF padrão (latin-1)"""
@@ -85,17 +85,15 @@ def gerar_pdf(dados):
     
     # Dados Principais
     pdf.set_font("Arial", size=12)
-    
     campos = [
         ("Data Abertura", dados.get('created_at', '')),
-        ("Status", dados.get('status', '')),
+        ("Status Atual", dados.get('status', '')),
         ("Tipo", dados.get('tipo', '')),
         ("Origem", dados.get('origem', '')),
         ("Fiscal Responsavel", dados.get('quem_recebeu', '')),
         ("Endereco", f"{dados.get('rua','')} , {dados.get('numero','')} - {dados.get('bairro','')}"),
         ("Zona", dados.get('zona', '')),
     ]
-    
     for titulo, valor in campos:
         pdf.set_font("Arial", 'B', 12)
         pdf.cell(50, 10, clean_text(f"{titulo}:"), border=0)
@@ -104,31 +102,27 @@ def gerar_pdf(dados):
         
     pdf.ln(5)
     
-    # Descrição
+    # Descrição e Histórico
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, clean_text("Descricao da Ocorrencia:"), ln=True)
+    pdf.cell(0, 10, clean_text("Relato / Historico de Reincidencias:"), ln=True)
     pdf.set_font("Arial", '', 12)
+    
+    # Multi cell lida bem com as quebras de linha (\n) que vamos adicionar
     pdf.multi_cell(0, 7, clean_text(dados.get('descricao', '')))
     
     pdf.ln(20)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.cell(0, 10, clean_text("Assinatura do Fiscal"), align='R')
+    pdf.cell(0, 10, clean_text("Assinatura do Responsavel"), align='R')
     
-    # --- CORREÇÃO DO ERRO BYTEARRAY ---
-    # O output(dest='S') pode retornar string (versões antigas) ou bytearray (versões novas)
+    # Retorno seguro (Bytes)
     pdf_content = pdf.output(dest='S')
-    
     if isinstance(pdf_content, str):
-        # Se for string, converte para bytes
         return pdf_content.encode('latin-1')
-    else:
-        # Se já for bytearray/bytes, retorna direto
-        return bytes(pdf_content)
+    return bytes(pdf_content)
 
 # ============================================================
 # FUNÇÕES DE BANCO DE DADOS
 # ============================================================
-
 def get_worksheet(sheet_name):
     gc, key = SheetsClient.get_client()
     if not gc: return None
@@ -170,7 +164,6 @@ def update_full_sheet(sheet_name, df):
 # ============================================================
 # AUTENTICAÇÃO
 # ============================================================
-
 def hash_password(password):
     return hashlib.sha256(str(password).encode()).hexdigest()
 
@@ -346,7 +339,7 @@ elif page == "Histórico / Editar":
                 
                 idx_status = OPCOES_STATUS.index(current_status) if current_status in OPCOES_STATUS else 0
                 new_st = st.selectbox("Status", OPCOES_STATUS, index=idx_status)
-                new_desc = st.text_area("Descrição", value=row_data['descricao'])
+                new_desc = st.text_area("Descrição", value=row_data['descricao'], height=150)
                 
                 if st.form_submit_button("✅ Salvar Alterações"):
                     df.at[idx, 'status'] = new_st
@@ -403,10 +396,12 @@ elif page == "Histórico / Editar":
                 st.rerun()
 
 # ============================================================
-# PÁGINA 4: REINCIDÊNCIAS
+# PÁGINA 4: REINCIDÊNCIAS (MODIFICADA)
 # ============================================================
 elif page == "Reincidências":
     st.title("🔄 Registrar Reincidência")
+    st.info("Isso adicionará o novo relato à denúncia original e mudará o status para Pendente.")
+    
     df_den = load_data(SHEET_DENUNCIAS)
     
     if not df_den.empty:
@@ -415,20 +410,54 @@ elif page == "Reincidências":
         
         if escolha:
             real_id = escolha.split(" - ")[0]
-            with st.form("reinc_form"):
-                st.write(f"Vinculando a: **{real_id}**")
-                desc = st.text_area("Observação da Nova Visita")
-                origem = st.selectbox("Origem", OPCOES_ORIGEM)
-                if st.form_submit_button("Salvar Reincidência"):
-                    rec = {
-                        "external_id": real_id,
-                        "data_hora": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        "origem": origem,
-                        "descricao": desc,
-                        "registrado_por": user_info['name']
-                    }
-                    add_row(SHEET_REINCIDENCIAS, rec, REINCIDENCIA_SCHEMA)
-                    st.success("Registrado!")
+            
+            # Busca dados atuais para mostrar na tela
+            row_idx_list = df_den.index[df_den['external_id'] == real_id].tolist()
+            
+            if row_idx_list:
+                row_idx = row_idx_list[0]
+                desc_atual = df_den.at[row_idx, 'descricao']
+                
+                with st.expander("Ver descrição atual", expanded=False):
+                    st.text(desc_atual)
+
+                with st.form("reinc_form"):
+                    st.write(f"Vinculando a: **{real_id}**")
+                    desc_nova = st.text_area("Relato da Nova Visita / Reincidência")
+                    origem = st.selectbox("Origem", OPCOES_ORIGEM)
+                    
+                    if st.form_submit_button("Salvar e Reabrir Caso"):
+                        if not desc_nova:
+                            st.error("Escreva o relato da visita.")
+                        else:
+                            # 1. Salva log na aba Reincidencias (para auditoria)
+                            rec = {
+                                "external_id": real_id,
+                                "data_hora": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                "origem": origem,
+                                "descricao": desc_nova,
+                                "registrado_por": user_info['name']
+                            }
+                            add_row(SHEET_REINCIDENCIAS, rec, REINCIDENCIA_SCHEMA)
+                            
+                            # 2. Atualiza a Denúncia Original (Engorda o texto + Abre status)
+                            timestamp = datetime.now().strftime('%d/%m/%Y %H:%M')
+                            
+                            # Formata o bloco de texto para separar bem
+                            texto_adicional = f"\n\n{'='*20}\n[REINCIDÊNCIA - {timestamp}]\nFiscal: {user_info['name']}\nOrigem: {origem}\n\n{desc_nova}"
+                            
+                            nova_descricao_completa = str(desc_atual) + texto_adicional
+                            
+                            # Atualiza DataFrame
+                            df_den.at[row_idx, 'descricao'] = nova_descricao_completa
+                            df_den.at[row_idx, 'status'] = 'Pendente' # Força reabertura
+                            
+                            # Salva na Planilha Principal
+                            update_full_sheet(SHEET_DENUNCIAS, df_den)
+                            
+                            st.success("Reincidência gravada! Caso reaberto como Pendente.")
+                            time.sleep(2)
+                            st.rerun()
     else:
         st.info("Sem denúncias base.")
 
