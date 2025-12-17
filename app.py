@@ -3,7 +3,7 @@ import pandas as pd
 import hashlib
 from datetime import datetime
 import time
-import pytz  # <--- NOVA IMPORTAÇÃO IMPORTANTE
+import pytz 
 
 from google.oauth2 import service_account
 from gspread.exceptions import WorksheetNotFound
@@ -11,27 +11,24 @@ import gspread
 from fpdf import FPDF
 
 # ============================================================
-# CONFIGURAÇÃO INICIAL E FUSO HORÁRIO
+# CONFIGURAÇÃO INICIAL E FUSO
 # ============================================================
 st.set_page_config(page_title="URB Fiscalização", layout="wide")
-
-# DEFINE O FUSO HORÁRIO (RECIFE/BRASILIA)
 FUSO_BR = pytz.timezone('America/Recife') 
-# Se preferir horário de Brasília, use: 'America/Sao_Paulo'
 
-# Nomes das abas na Planilha
+# Nomes das abas
 SHEET_DENUNCIAS = "denuncias_registro"
 SHEET_REINCIDENCIAS = "reincidencias"
 SHEET_USUARIOS = "usuarios"
 
-# Listas do Sistema
+# Listas
 OPCOES_STATUS = ['Pendente', 'Em Andamento', 'Concluída', 'Arquivada']
 OPCOES_ORIGEM = ['Pessoalmente','Telefone','Whatsapp','Ministério Publico','Administração','Ouvidoria','Disk Denuncia']
 OPCOES_TIPO = ['Urbana','Ambiental','Urbana e Ambiental']
 OPCOES_ZONA = ['NORTE','SUL','LESTE','OESTE','CENTRO']
 OPCOES_FISCAIS_SELECT = ['EDVALDO','PATRICIA','RAIANY','SUELLEN']
 
-# SCHEMAS
+# SCHEMAS (Apenas referência, agora o salvamento é dinâmico)
 DENUNCIA_SCHEMA = [
     'id', 'external_id', 'created_at', 'origem', 'tipo', 'rua', 
     'numero', 'bairro', 'zona', 'latitude', 'longitude', 
@@ -71,10 +68,9 @@ class SheetsClient:
         return cls._gc, cls._spreadsheet_key
 
 # ============================================================
-# FUNÇÃO GERADORA DE PDF
+# FUNÇÃO GERADORA DE PDF (CORRIGIDA VISUALMENTE)
 # ============================================================
 def clean_text(text):
-    """Remove caracteres incompatíveis com o PDF padrão (latin-1)"""
     if text is None: return ""
     return str(text).encode('latin-1', 'replace').decode('latin-1')
 
@@ -82,20 +78,32 @@ def gerar_pdf(dados):
     pdf = FPDF()
     pdf.add_page()
     
+    # --- TRATAMENTO DE ERROS DE DADOS ANTIGOS ---
+    status_display = str(dados.get('status', ''))
+    fiscal_display = str(dados.get('quem_recebeu', ''))
+    
+    # Se o status estiver como FALSE (erro de coluna), força Pendente
+    if status_display.upper() == 'FALSE':
+        status_display = "Pendente"
+        
+    # Se o fiscal estiver como Pendente (coluna trocada), tenta limpar
+    if fiscal_display in OPCOES_STATUS: 
+        fiscal_display = "Nao Informado (Erro Cadastro)"
+
     # Cabeçalho
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(0, 10, clean_text(f"ORDEM DE SERVICO - {dados['external_id']}"), ln=True, align='C')
     pdf.line(10, 20, 200, 20)
     pdf.ln(10)
     
-    # Dados Principais
+    # Dados
     pdf.set_font("Arial", size=12)
     campos = [
         ("Data Abertura", dados.get('created_at', '')),
-        ("Status Atual", dados.get('status', '')),
+        ("Status Atual", status_display),  # Usa a variável corrigida
         ("Tipo", dados.get('tipo', '')),
         ("Origem", dados.get('origem', '')),
-        ("Fiscal Responsavel", dados.get('quem_recebeu', '')),
+        ("Fiscal Responsavel", fiscal_display), # Usa a variável corrigida
         ("Endereco", f"{dados.get('rua','')} , {dados.get('numero','')} - {dados.get('bairro','')}"),
         ("Zona", dados.get('zona', '')),
     ]
@@ -107,25 +115,24 @@ def gerar_pdf(dados):
         
     pdf.ln(5)
     
-    # Descrição e Histórico
+    # Descrição
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, clean_text("Relato / Historico de Reincidencias:"), ln=True)
+    pdf.cell(0, 10, clean_text("Relato / Historico:"), ln=True)
     pdf.set_font("Arial", '', 12)
-    
     pdf.multi_cell(0, 7, clean_text(dados.get('descricao', '')))
     
     pdf.ln(20)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.cell(0, 10, clean_text("Assinatura do Responsavel"), align='R')
     
-    # Retorno seguro (Bytes)
+    # Output seguro
     pdf_content = pdf.output(dest='S')
     if isinstance(pdf_content, str):
         return pdf_content.encode('latin-1')
     return bytes(pdf_content)
 
 # ============================================================
-# FUNÇÕES DE BANCO DE DADOS
+# FUNÇÕES DE BANCO DE DADOS (AGORA INTELIGENTES)
 # ============================================================
 def get_worksheet(sheet_name):
     gc, key = SheetsClient.get_client()
@@ -136,6 +143,7 @@ def get_worksheet(sheet_name):
         ws = sh.worksheet(sheet_name)
     except WorksheetNotFound:
         ws = sh.add_worksheet(sheet_name, rows=100, cols=20)
+        # Cria cabeçalho inicial se não existir
         if sheet_name == SHEET_DENUNCIAS:
             ws.append_row(DENUNCIA_SCHEMA)
         elif sheet_name == SHEET_USUARIOS:
@@ -147,16 +155,33 @@ def get_worksheet(sheet_name):
 def load_data(sheet_name):
     ws = get_worksheet(sheet_name)
     if not ws: return pd.DataFrame()
-    data = ws.get_all_records()
+    data = ws.get_all_records() # Isso lê os headers reais da planilha
     df = pd.DataFrame(data)
     return df.fillna('')
 
-def add_row(sheet_name, row_dict, schema_order=None):
+def salvar_dados_seguro(sheet_name, row_dict):
+    """
+    Função INTELIGENTE: Lê a ordem das colunas da planilha e salva no lugar certo.
+    Isso evita o erro de 'Status' cair na coluna 'Fiscal'.
+    """
     ws = get_worksheet(sheet_name)
-    if schema_order:
-        values = [str(row_dict.get(col, '')) for col in schema_order]
-    else:
-        values = [str(v) for v in row_dict.values()]
+    
+    # 1. Pega os cabeçalhos que REALMENTE estão na planilha
+    headers = ws.row_values(1)
+    
+    # 2. Se a planilha estiver vazia (sem header), usa o padrão
+    if not headers:
+        if sheet_name == SHEET_DENUNCIAS: headers = DENUNCIA_SCHEMA
+        elif sheet_name == SHEET_REINCIDENCIAS: headers = REINCIDENCIA_SCHEMA
+        ws.append_row(headers)
+    
+    # 3. Monta a lista de valores na ordem que a planilha pede
+    values = []
+    for h in headers:
+        # Pega o valor correspondente ao cabeçalho, ou vazio se não tiver
+        val = row_dict.get(h, '') 
+        values.append(str(val))
+        
     ws.append_row(values)
 
 def update_full_sheet(sheet_name, df):
@@ -174,7 +199,7 @@ def hash_password(password):
 def init_users_if_empty():
     df_users = load_data(SHEET_USUARIOS)
     if df_users.empty:
-        st.warning("Inicializando usuários padrão...")
+        st.warning("Criando usuários padrão...")
         default_pwd = hash_password("urb123")
         users_init = [
             {"username": "suellen", "password": default_pwd, "name": "Suellen", "role": "admin"},
@@ -201,7 +226,7 @@ def change_password(username, new_password):
     return True
 
 # ============================================================
-# TELA DE LOGIN
+# TELA LOGIN
 # ============================================================
 if 'user' not in st.session_state:
     st.session_state.user = None
@@ -210,35 +235,35 @@ if st.session_state.user is None:
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
         st.title("🔐 URB Fiscalização")
-        with st.form("login_form"):
+        with st.form("login"):
             u = st.text_input("Usuário").strip()
             p = st.text_input("Senha", type="password")
             if st.form_submit_button("Entrar"):
                 user_data = check_login(u, p)
                 if user_data:
                     st.session_state.user = user_data
-                    st.success(f"Bem-vindo(a) {user_data['name']}!")
+                    st.success(f"Olá, {user_data['name']}!")
                     time.sleep(1)
                     st.rerun()
                 else:
-                    st.error("Dados inválidos.")
+                    st.error("Login inválido")
     st.stop()
 
 # ============================================================
 # APP PRINCIPAL
 # ============================================================
 user_info = st.session_state.user
-st.sidebar.title(f"Olá, {user_info['name']}")
+st.sidebar.title(f"Fiscal: {user_info['name']}")
 page = st.sidebar.radio("Menu", ["Dashboard", "Registrar Denúncia", "Histórico / Editar", "Reincidências"])
 st.sidebar.divider()
 
-with st.sidebar.expander("🔑 Alterar Senha"):
-    with st.form("change_pwd"):
-        new_p1 = st.text_input("Nova Senha", type="password")
+with st.sidebar.expander("🔑 Senha"):
+    with st.form("pwd"):
+        np = st.text_input("Nova Senha", type="password")
         if st.form_submit_button("Alterar"):
-            if len(new_p1) > 0:
-                change_password(user_info['username'], new_p1)
-                st.success("Sucesso! Relogue.")
+            if len(np) > 0:
+                change_password(user_info['username'], np)
+                st.success("Senha alterada! Relogue.")
                 st.session_state.user = None
                 time.sleep(2)
                 st.rerun()
@@ -255,6 +280,7 @@ if page == "Dashboard":
     df = load_data(SHEET_DENUNCIAS)
     
     if not df.empty and 'status' in df.columns:
+        # Correção visual para o Dashboard
         df['status'] = df['status'].replace('FALSE', 'Pendente').replace('False', 'Pendente')
 
         c1, c2, c3, c4 = st.columns(4)
@@ -266,14 +292,14 @@ if page == "Dashboard":
         st.subheader("Últimas Ocorrências")
         st.dataframe(df.tail(5)[['external_id','bairro','status']], use_container_width=True)
     else:
-        st.info("Sem dados para exibir.")
+        st.info("Sem dados.")
 
 # ============================================================
 # PÁGINA 2: REGISTRO
 # ============================================================
 elif page == "Registrar Denúncia":
     st.title("📝 Nova Denúncia")
-    with st.form('registro'):
+    with st.form('reg'):
         c1, c2 = st.columns(2)
         origem = c1.selectbox('Origem', OPCOES_ORIGEM)
         tipo = c2.selectbox('Tipo', OPCOES_TIPO)
@@ -287,13 +313,11 @@ elif page == "Registrar Denúncia":
         
         if st.form_submit_button('💾 Salvar'):
             if not rua:
-                st.error("Preencha a Rua.")
+                st.error("Rua obrigatória.")
             else:
                 df = load_data(SHEET_DENUNCIAS)
                 new_id = len(df) + 1
                 ext_id = f"{new_id:04d}/{datetime.now().year}"
-                
-                # --- CORREÇÃO DE DATA/HORA AQUI ---
                 agora_br = datetime.now(FUSO_BR).strftime('%Y-%m-%d %H:%M:%S')
                 
                 record = {
@@ -309,95 +333,89 @@ elif page == "Registrar Denúncia":
                     'latitude': '',
                     'longitude': '',
                     'descricao': desc,
-                    'quem_recebeu': quem,
+                    'quem_recebeu': quem, # Garante que vai pra coluna certa
                     'status': 'Pendente',
                     'acao_noturna': 'FALSE'
                 }
-                add_row(SHEET_DENUNCIAS, record, DENUNCIA_SCHEMA)
+                # USA A FUNÇÃO NOVA E SEGURA
+                salvar_dados_seguro(SHEET_DENUNCIAS, record)
                 st.success(f"Denúncia {ext_id} salva!")
                 time.sleep(1)
                 st.rerun()
 
 # ============================================================
-# PÁGINA 3: HISTÓRICO E EDIÇÃO
+# PÁGINA 3: HISTÓRICO
 # ============================================================
 elif page == "Histórico / Editar":
-    st.title("🗂️ Gerenciar Denúncias")
+    st.title("🗂️ Gerenciar")
     df = load_data(SHEET_DENUNCIAS)
     
     if df.empty:
-        st.warning("Nenhuma denúncia encontrada.")
+        st.warning("Vazio.")
         st.stop()
 
-    # --- MODO DE EDIÇÃO ---
+    # Edição
     if 'edit_id' in st.session_state:
         st.markdown("---")
-        st.info(f"✏️ Editando registro ID: {st.session_state.edit_id}")
+        st.info(f"✏️ Editando: {st.session_state.edit_id}")
+        row_idx_list = df.index[df['id'] == st.session_state.edit_id].tolist()
         
-        row_idx = df.index[df['id'] == st.session_state.edit_id].tolist()
-        if row_idx:
-            idx = row_idx[0]
+        if row_idx_list:
+            idx = row_idx_list[0]
             row_data = df.iloc[idx]
             
-            with st.form("edit_form"):
-                current_status = row_data['status']
-                if str(current_status).upper() == 'FALSE':
-                    current_status = 'Pendente'
+            with st.form("edit"):
+                # Tratamento visual do erro FALSE
+                curr_st = row_data.get('status', 'Pendente')
+                if str(curr_st).upper() == 'FALSE': curr_st = 'Pendente'
                 
-                idx_status = OPCOES_STATUS.index(current_status) if current_status in OPCOES_STATUS else 0
-                new_st = st.selectbox("Status", OPCOES_STATUS, index=idx_status)
-                new_desc = st.text_area("Descrição", value=row_data['descricao'], height=150)
+                idx_st = OPCOES_STATUS.index(curr_st) if curr_st in OPCOES_STATUS else 0
                 
-                if st.form_submit_button("✅ Salvar Alterações"):
-                    df.at[idx, 'status'] = new_st
-                    df.at[idx, 'descricao'] = new_desc
+                nst = st.selectbox("Status", OPCOES_STATUS, index=idx_st)
+                ndesc = st.text_area("Descrição", value=row_data.get('descricao', ''), height=150)
+                
+                if st.form_submit_button("✅ Salvar"):
+                    df.at[idx, 'status'] = nst
+                    df.at[idx, 'descricao'] = ndesc
                     update_full_sheet(SHEET_DENUNCIAS, df)
-                    st.success("Atualizado!")
+                    st.success("Salvo!")
                     del st.session_state.edit_id
                     time.sleep(1)
                     st.rerun()
-            
             if st.button("Cancelar"):
                 del st.session_state.edit_id
                 st.rerun()
         st.markdown("---")
 
-    # --- LISTAGEM ---
+    # Listagem
     df_display = df.sort_values(by='id', ascending=False)
-    
     for idx, row in df_display.iterrows():
         with st.container(border=True):
             cols = st.columns([1, 3, 1.2, 0.6, 0.6])
+            cols[0].markdown(f"**{row.get('external_id','')}**")
+            cols[0].caption(row.get('created_at',''))
             
-            cols[0].markdown(f"**{row['external_id']}**")
-            cols[0].caption(row['created_at'])
+            cols[1].write(f"📍 {row.get('rua','')} - {row.get('bairro','')}")
+            cols[1].caption(f"{row.get('tipo','')} | {str(row.get('descricao',''))[:50]}...")
             
-            cols[1].write(f"📍 {row['rua']}, {row['numero']} - {row['bairro']}")
-            cols[1].caption(f"{row['tipo']} | {str(row['descricao'])[:60]}...")
-            
-            status_val = str(row['status'])
-            if status_val.upper() == 'FALSE':
-                status_display = "Pendente"
-                color = "orange"
+            # Status Visual
+            st_val = str(row.get('status',''))
+            if st_val.upper() == 'FALSE':
+                st_dsp = "Pendente"
+                clr = "orange"
             else:
-                status_display = status_val
-                color = "orange" if status_display == "Pendente" else "green" if status_display == "Concluída" else "blue"
+                st_dsp = st_val
+                clr = "orange" if st_dsp == "Pendente" else "green" if st_dsp == "Concluída" else "blue"
             
-            cols[2].markdown(f":{color}[**{status_display}**]")
+            cols[2].markdown(f":{clr}[**{st_dsp}**]")
             
-            # BOTÃO PDF
+            # PDF
             try:
                 pdf_bytes = gerar_pdf(row)
-                cols[3].download_button(
-                    label="📄",
-                    data=pdf_bytes,
-                    file_name=f"OS_{str(row['external_id']).replace('/','-')}.pdf",
-                    mime="application/pdf",
-                    key=f"pdf_{row['id']}"
-                )
+                cols[3].download_button("📄", pdf_bytes, f"OS_{row.get('external_id','').replace('/','-')}.pdf", "application/pdf", key=f"pdf_{row['id']}")
             except Exception as e:
-                cols[3].error(f"Erro: {e}")
-
+                cols[3].error("Erro")
+            
             if cols[4].button("✏️", key=f"btn_{row['id']}"):
                 st.session_state.edit_id = row['id']
                 st.rerun()
@@ -406,67 +424,49 @@ elif page == "Histórico / Editar":
 # PÁGINA 4: REINCIDÊNCIAS
 # ============================================================
 elif page == "Reincidências":
-    st.title("🔄 Registrar Reincidência")
-    st.info("Isso adicionará o novo relato à denúncia original e mudará o status para Pendente.")
-    
+    st.title("🔄 Reincidência")
+    st.info("Adiciona relato e reabre o caso.")
     df_den = load_data(SHEET_DENUNCIAS)
     
     if not df_den.empty:
-        df_den['label'] = df_den['external_id'] + " - " + df_den['rua']
+        df_den['label'] = df_den['external_id'].astype(str) + " - " + df_den['rua'].astype(str)
         escolha = st.selectbox("Denúncia Original", df_den['label'].tolist())
         
         if escolha:
             real_id = escolha.split(" - ")[0]
+            row_idx = df_den.index[df_den['external_id'] == real_id].tolist()[0]
+            desc_atual = df_den.at[row_idx, 'descricao']
             
-            # Busca dados atuais para mostrar na tela
-            row_idx_list = df_den.index[df_den['external_id'] == real_id].tolist()
+            with st.expander("Ver Atual"): st.text(desc_atual)
             
-            if row_idx_list:
-                row_idx = row_idx_list[0]
-                desc_atual = df_den.at[row_idx, 'descricao']
+            with st.form("reinc"):
+                desc_nova = st.text_area("Novo Relato")
+                origem = st.selectbox("Origem", OPCOES_ORIGEM)
                 
-                with st.expander("Ver descrição atual", expanded=False):
-                    st.text(desc_atual)
-
-                with st.form("reinc_form"):
-                    st.write(f"Vinculando a: **{real_id}**")
-                    desc_nova = st.text_area("Relato da Nova Visita / Reincidência")
-                    origem = st.selectbox("Origem", OPCOES_ORIGEM)
-                    
-                    if st.form_submit_button("Salvar e Reabrir Caso"):
-                        if not desc_nova:
-                            st.error("Escreva o relato da visita.")
-                        else:
-                            # --- CORREÇÃO DE DATA/HORA AQUI ---
-                            agora_br = datetime.now(FUSO_BR).strftime('%Y-%m-%d %H:%M:%S')
-                            timestamp_txt = datetime.now(FUSO_BR).strftime('%d/%m/%Y %H:%M')
-                            
-                            # 1. Salva log na aba Reincidencias
-                            rec = {
-                                "external_id": real_id,
-                                "data_hora": agora_br,
-                                "origem": origem,
-                                "descricao": desc_nova,
-                                "registrado_por": user_info['name']
-                            }
-                            add_row(SHEET_REINCIDENCIAS, rec, REINCIDENCIA_SCHEMA)
-                            
-                            # 2. Atualiza a Denúncia Original
-                            texto_adicional = f"\n\n{'='*20}\n[REINCIDÊNCIA - {timestamp_txt}]\nFiscal: {user_info['name']}\nOrigem: {origem}\n\n{desc_nova}"
-                            
-                            nova_descricao_completa = str(desc_atual) + texto_adicional
-                            
-                            df_den.at[row_idx, 'descricao'] = nova_descricao_completa
-                            df_den.at[row_idx, 'status'] = 'Pendente'
-                            
-                            update_full_sheet(SHEET_DENUNCIAS, df_den)
-                            
-                            st.success("Reincidência gravada! Caso reaberto como Pendente.")
-                            time.sleep(2)
-                            st.rerun()
-    else:
-        st.info("Sem denúncias base.")
-
+                if st.form_submit_button("Salvar"):
+                    if not desc_nova:
+                        st.error("Escreva algo.")
+                    else:
+                        agora_br = datetime.now(FUSO_BR).strftime('%Y-%m-%d %H:%M:%S')
+                        timestamp = datetime.now(FUSO_BR).strftime('%d/%m/%Y %H:%M')
+                        
+                        rec = {
+                            "external_id": real_id,
+                            "data_hora": agora_br,
+                            "origem": origem,
+                            "descricao": desc_nova,
+                            "registrado_por": user_info['name']
+                        }
+                        salvar_dados_seguro(SHEET_REINCIDENCIAS, rec)
+                        
+                        texto_add = f"\n\n{'='*20}\n[REINCIDÊNCIA - {timestamp}]\nFiscal: {user_info['name']} | Origem: {origem}\n{desc_nova}"
+                        df_den.at[row_idx, 'descricao'] = str(desc_atual) + texto_add
+                        df_den.at[row_idx, 'status'] = 'Pendente'
+                        
+                        update_full_sheet(SHEET_DENUNCIAS, df_den)
+                        st.success("Feito!")
+                        time.sleep(2)
+                        st.rerun()
 
 
 
