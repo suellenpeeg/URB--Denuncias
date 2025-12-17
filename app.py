@@ -335,7 +335,109 @@ elif page == "Histórico / Editar":
         st.markdown("---")
         st.info(f"✏️ Editando registro ID: {st.session_state.edit_id}")
         
-        row_idx = df.index[df['id'] == st.session_state.edit_
+        row_idx = df.index[df['id'] == st.session_state.edit_id].tolist()
+        if row_idx:
+            idx = row_idx[0]
+            row_data = df.iloc[idx]
+            
+            with st.form("edit_form"):
+                # Tratamento para status "FALSE" antigo
+                current_status = row_data['status']
+                if str(current_status).upper() == 'FALSE':
+                    current_status = 'Pendente'
+                
+                idx_status = OPCOES_STATUS.index(current_status) if current_status in OPCOES_STATUS else 0
+                
+                new_st = st.selectbox("Status", OPCOES_STATUS, index=idx_status)
+                new_desc = st.text_area("Descrição", value=row_data['descricao'])
+                
+                if st.form_submit_button("✅ Salvar Alterações"):
+                    df.at[idx, 'status'] = new_st
+                    df.at[idx, 'descricao'] = new_desc
+                    update_full_sheet(SHEET_DENUNCIAS, df)
+                    st.success("Atualizado!")
+                    del st.session_state.edit_id
+                    time.sleep(1)
+                    st.rerun()
+            
+            if st.button("Cancelar"):
+                del st.session_state.edit_id
+                st.rerun()
+        st.markdown("---")
+
+    # --- LISTAGEM ---
+    df_display = df.sort_values(by='id', ascending=False)
+    
+    for idx, row in df_display.iterrows():
+        with st.container(border=True):
+            # Layout 5 colunas: ID | Dados | Status | PDF | Editar
+            cols = st.columns([1, 3, 1.2, 0.6, 0.6])
+            
+            cols[0].markdown(f"**{row['external_id']}**")
+            cols[0].caption(row['created_at'])
+            
+            cols[1].write(f"📍 {row['rua']}, {row['numero']} - {row['bairro']}")
+            cols[1].caption(f"{row['tipo']} | {row['descricao'][:60]}...")
+            
+            # --- CORREÇÃO VISUAL DO STATUS ---
+            status_val = str(row['status'])
+            # Se for FALSE (erro antigo), mostra como Pendente visualmente
+            if status_val.upper() == 'FALSE':
+                status_display = "Pendente"
+                color = "orange"
+            else:
+                status_display = status_val
+                color = "orange" if status_display == "Pendente" else "green" if status_display == "Concluída" else "blue"
+            
+            cols[2].markdown(f":{color}[**{status_display}**]")
+            
+            # BOTÃO PDF
+            try:
+                pdf_bytes = gerar_pdf(row)
+                cols[3].download_button(
+                    label="📄",
+                    data=pdf_bytes,
+                    file_name=f"OS_{row['external_id'].replace('/','-')}.pdf",
+                    mime="application/pdf",
+                    key=f"pdf_{row['id']}"
+                )
+            except Exception as e:
+                cols[3].error("Erro PDF")
+
+            # BOTÃO EDITAR
+            if cols[4].button("✏️", key=f"btn_{row['id']}"):
+                st.session_state.edit_id = row['id']
+                st.rerun()
+
+# ============================================================
+# PÁGINA 4: REINCIDÊNCIAS
+# ============================================================
+elif page == "Reincidências":
+    st.title("🔄 Registrar Reincidência")
+    df_den = load_data(SHEET_DENUNCIAS)
+    
+    if not df_den.empty:
+        df_den['label'] = df_den['external_id'] + " - " + df_den['rua']
+        escolha = st.selectbox("Denúncia Original", df_den['label'].tolist())
+        
+        if escolha:
+            real_id = escolha.split(" - ")[0]
+            with st.form("reinc_form"):
+                st.write(f"Vinculando a: **{real_id}**")
+                desc = st.text_area("Observação da Nova Visita")
+                origem = st.selectbox("Origem", OPCOES_ORIGEM)
+                if st.form_submit_button("Salvar Reincidência"):
+                    rec = {
+                        "external_id": real_id,
+                        "data_hora": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        "origem": origem,
+                        "descricao": desc,
+                        "registrado_por": user_info['name']
+                    }
+                    add_row(SHEET_REINCIDENCIAS, rec, REINCIDENCIA_SCHEMA)
+                    st.success("Registrado!")
+    else:
+        st.info("Sem denúncias base.")
 
 
 
