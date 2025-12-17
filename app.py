@@ -66,19 +66,18 @@ class SheetsClient:
         return cls._gc, cls._spreadsheet_key
 
 # ============================================================
-# FUNÇÃO GERADORA DE PDF (BLINDADA)
+# FUNÇÃO GERADORA DE PDF (CORRIGIDA PARA BYTEARRAY)
 # ============================================================
 def clean_text(text):
     """Remove caracteres incompatíveis com o PDF padrão (latin-1)"""
     if text is None: return ""
-    # Converte para string, força codificação latin-1 e ignora erros/emojis
     return str(text).encode('latin-1', 'replace').decode('latin-1')
 
 def gerar_pdf(dados):
     pdf = FPDF()
     pdf.add_page()
     
-    # Títulos e Cabeçalhos (Sem acentos hardcoded para evitar erro de script)
+    # Cabeçalho
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(0, 10, clean_text(f"ORDEM DE SERVICO - {dados['external_id']}"), ln=True, align='C')
     pdf.line(10, 20, 200, 20)
@@ -109,20 +108,22 @@ def gerar_pdf(dados):
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(0, 10, clean_text("Descricao da Ocorrencia:"), ln=True)
     pdf.set_font("Arial", '', 12)
-    
-    # Multi cell para quebra de linha automática
     pdf.multi_cell(0, 7, clean_text(dados.get('descricao', '')))
     
     pdf.ln(20)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.cell(0, 10, clean_text("Assinatura do Fiscal"), align='R')
     
-    # Retorna o binário do PDF de forma segura
-    try:
-        return pdf.output(dest='S').encode('latin-1')
-    except TypeError:
-        # Fallback para versões novas do FPDF
-        return pdf.output()
+    # --- CORREÇÃO DO ERRO BYTEARRAY ---
+    # O output(dest='S') pode retornar string (versões antigas) ou bytearray (versões novas)
+    pdf_content = pdf.output(dest='S')
+    
+    if isinstance(pdf_content, str):
+        # Se for string, converte para bytes
+        return pdf_content.encode('latin-1')
+    else:
+        # Se já for bytearray/bytes, retorna direto
+        return bytes(pdf_content)
 
 # ============================================================
 # FUNÇÕES DE BANCO DE DADOS
@@ -150,7 +151,6 @@ def load_data(sheet_name):
     if not ws: return pd.DataFrame()
     data = ws.get_all_records()
     df = pd.DataFrame(data)
-    # Preenche vazios com string vazia para evitar erros
     return df.fillna('')
 
 def add_row(sheet_name, row_dict, schema_order=None):
@@ -228,7 +228,7 @@ if st.session_state.user is None:
     st.stop()
 
 # ============================================================
-# APP PRINCIPAL (SIDEBAR)
+# APP PRINCIPAL
 # ============================================================
 user_info = st.session_state.user
 st.sidebar.title(f"Olá, {user_info['name']}")
@@ -258,7 +258,6 @@ if page == "Dashboard":
     df = load_data(SHEET_DENUNCIAS)
     
     if not df.empty and 'status' in df.columns:
-        # Correção visual do status 'FALSE'
         df['status'] = df['status'].replace('FALSE', 'Pendente').replace('False', 'Pendente')
 
         c1, c2, c3, c4 = st.columns(4)
@@ -341,13 +340,11 @@ elif page == "Histórico / Editar":
             row_data = df.iloc[idx]
             
             with st.form("edit_form"):
-                # Tratamento para status "FALSE" antigo
                 current_status = row_data['status']
                 if str(current_status).upper() == 'FALSE':
                     current_status = 'Pendente'
                 
                 idx_status = OPCOES_STATUS.index(current_status) if current_status in OPCOES_STATUS else 0
-                
                 new_st = st.selectbox("Status", OPCOES_STATUS, index=idx_status)
                 new_desc = st.text_area("Descrição", value=row_data['descricao'])
                 
@@ -378,7 +375,6 @@ elif page == "Histórico / Editar":
             cols[1].write(f"📍 {row['rua']}, {row['numero']} - {row['bairro']}")
             cols[1].caption(f"{row['tipo']} | {str(row['descricao'])[:60]}...")
             
-            # Status Visual
             status_val = str(row['status'])
             if status_val.upper() == 'FALSE':
                 status_display = "Pendente"
@@ -389,21 +385,19 @@ elif page == "Histórico / Editar":
             
             cols[2].markdown(f":{color}[**{status_display}**]")
             
-            # BOTÃO PDF (Agora com debug de erro real)
+            # BOTÃO PDF
             try:
                 pdf_bytes = gerar_pdf(row)
                 cols[3].download_button(
                     label="📄",
                     data=pdf_bytes,
-                    file_name=f"OS_{row['external_id'].replace('/','-')}.pdf",
+                    file_name=f"OS_{str(row['external_id']).replace('/','-')}.pdf",
                     mime="application/pdf",
                     key=f"pdf_{row['id']}"
                 )
             except Exception as e:
-                # Mostra o erro real para facilitar o conserto se ainda der pau
                 cols[3].error(f"Erro: {e}")
 
-            # BOTÃO EDITAR
             if cols[4].button("✏️", key=f"btn_{row['id']}"):
                 st.session_state.edit_id = row['id']
                 st.rerun()
@@ -437,6 +431,7 @@ elif page == "Reincidências":
                     st.success("Registrado!")
     else:
         st.info("Sem denúncias base.")
+
 
 
 
