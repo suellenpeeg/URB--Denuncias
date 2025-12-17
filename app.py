@@ -1,330 +1,411 @@
-# app.py
-# ============================================================
-# URB Fiscalização - Denúncias
-# Versão consolidada com:
-# - Mapper fixo de colunas
-# - Validação antes de salvar
-# - UX melhorada
-# - Botões Editar/Reincidência direto na tabela
-# - Dashboard por status
-# - Reincidências em aba separada no Sheets
-# - Perfis de usuário por permissão
-# ============================================================
-
 import streamlit as st
 import pandas as pd
-import json
-import os
-from datetime import datetime
 import hashlib
+from datetime import datetime
+import time
+
+from google.oauth2 import service_account
+from gspread.exceptions import WorksheetNotFound
 
 import gspread
-from google.oauth2 import service_account
-from gspread.exceptions import WorksheetNotFound, SpreadsheetNotFound
 
-from fpdf import FPDF
+# ============================================================
+# CONFIGURAÇÃO INICIAL
+# ============================================================
+st.set_page_config(page_title="URB Fiscalização", layout="wide")
 
-# ---------------------- CONFIGURAÇÃO ----------------------
-st.set_page_config(page_title="URB Fiscalização - Denúncias", layout="wide")
-
-# ---------------------- CONSTANTES ----------------------
+# Nomes das abas na Planilha
 SHEET_DENUNCIAS = "denuncias_registro"
 SHEET_REINCIDENCIAS = "reincidencias"
-USERS_PATH = "users.json"
+SHEET_USUARIOS = "usuarios"  # Nova aba para persistir senhas
 
-# ---------------------- SCHEMA FIXO ----------------------
-DENUNCIA_SCHEMA = {
-    'id': 0,
-    'external_id': '',
-    'created_at': '',
-    'origem': '',
-    'tipo': '',
-    'rua': '',
-    'numero': '',
-    'bairro': '',
-    'zona': '',
-    'latitude': '',
-    'longitude': '',
-    'descricao': '',
-    'quem_recebeu': '',
-    'status': 'Pendente',
-    'acao_noturna': False
-}
-
-REINCIDENCIA_SCHEMA = {
-    'external_id': '',
-    'data_hora': '',
-    'origem': '',
-    'descricao': ''
-}
-
-# ---------------------- OPÇÕES ----------------------
+# Listas do Sistema
 OPCOES_STATUS = ['Pendente', 'Em Andamento', 'Concluída', 'Arquivada']
 OPCOES_ORIGEM = ['Pessoalmente','Telefone','Whatsapp','Ministério Publico','Administração','Ouvidoria','Disk Denuncia']
 OPCOES_TIPO = ['Urbana','Ambiental','Urbana e Ambiental']
 OPCOES_ZONA = ['NORTE','SUL','LESTE','OESTE','CENTRO']
-OPCOES_FISCAIS = ['EDVALDO','PATRICIA','RAIANY','SUELLEN']
+# A lista de fiscais para o selectbox (pode ser diferente dos usuários de login)
+OPCOES_FISCAIS_SELECT = ['EDVALDO','PATRICIA','RAIANY','SUELLEN']
 
-# ---------------------- GOOGLE SHEETS ----------------------
+# Schemas
+DENUNCIA_SCHEMA = [
+    'id', 'external_id', 'created_at', 'origem', 'tipo', 'rua', 
+    'numero', 'bairro', 'zona', 'latitude', 'longitude', 
+    'descricao', 'quem_recebeu', 'status', 'acao_noturna'
+]
+
+# ============================================================
+# CONEXÃO GOOGLE SHEETS
+# ============================================================
 class SheetsClient:
     _gc = None
+    _spreadsheet_key = None
 
     @classmethod
     def get_client(cls):
         if cls._gc is None:
-           try:
-               secrets = st.secrets["gcp_service_account"]
-               info = dict(secrets)
+            try:
+                secrets = st.secrets["gcp_service_account"]
+                cls._spreadsheet_key = secrets["spreadsheet_key"]
+                
+                info = dict(secrets)
+                # Correção de quebra de linha na chave privada
+                if "private_key" in info:
+                    info["private_key"] = info["private_key"].replace("\\n", "\n")
 
-               # >>> CORREÇÃO CRÍTICA AQUI <<<
-               # 1. Garante que 'private_key' existe
-               private_key = info.get("private_key")
-               if not private_key:
-                   raise KeyError("Chave 'private_key' não encontrada no Service Account.")
-
-               # 2. Substitui \n por quebras de linha reais, o que é exigido pelo Google
-               info["private_key"] = private_key.replace("\\n", "\n")
-               # FIM CORREÇÃO
-
-               creds = service_account.Credentials.from_service_account_info(
+                creds = service_account.Credentials.from_service_account_info(
                     info,
-                    scopes=[
-                        "https://www.googleapis.com/auth/spreadsheets",
-                        "https://www.googleapis.com/auth/drive",
-                    ],
+                    scopes=["https://www.googleapis.com/auth/spreadsheets"]
                 )
-               cls._gc = gspread.authorize(creds)
-               
-           except Exception as e:
-               st.error(f"❌ Erro de Autenticação GSheets. Verifique a chave 'private_key' nos Secrets.")
-               st.code(repr(e))
-               # Retorna None em caso de falha de autenticação
-               return None 
+                cls._gc = gspread.authorize(creds)
+            except Exception as e:
+                st.error(f"Erro no Login do Google Sheets: {e}")
+                return None
+        return cls._gc, cls._spreadsheet_key
 
-        return cls._gc
-# ---------------------- UTILITIES ----------------------
+# ============================================================
+# FUNÇÕES DE BANCO DE DADOS (SHEETS)
+# ============================================================
 
-def normalize_record(rec, schema):
-    clean = schema.copy()
-    if not rec:
-        return clean
-    for k in clean:
-        v = rec.get(k)
-        if pd.isna(v) or v is None:
-            clean[k] = schema[k]
-        else:
-            clean[k] = v
-    return clean
-
-
-def validate_denuncia(data):
-    errors = []
-    for field in ['origem','tipo','rua','numero','bairro','zona','descricao','quem_recebeu']:
-        if not str(data.get(field, '')).strip():
-            errors.append(f"Campo obrigatório não preenchido: {field}")
-    return errors
-
-
-def load_sheet(sheet_name):
-    # 🔑 Lê a chave da planilha DENTRO do bloco gcp_service_account (mais estável no Streamlit Cloud)
-    secrets = st.secrets.get("gcp_service_account")
-    if not secrets or "spreadsheet_key" not in secrets:
-        st.error(
-            "❌ A chave 'spreadsheet_key' não foi encontrada dentro de [gcp_service_account] nos Secrets.\n"
-            "Abra Manage app → Settings → Secrets e mova a chave para dentro do bloco gcp_service_account."
-        )
-        st.stop()
-
-    spreadsheet_key = secrets["spreadsheet_key"]
-
-    gc = SheetsClient.get_client()
-    sh = gc.open_by_key(spreadsheet_key)
-
+def get_worksheet(sheet_name):
+    gc, key = SheetsClient.get_client()
+    sh = gc.open_by_key(key)
     try:
         ws = sh.worksheet(sheet_name)
     except WorksheetNotFound:
         ws = sh.add_worksheet(sheet_name, rows=100, cols=20)
-        header = list(DENUNCIA_SCHEMA.keys()) if sheet_name == SHEET_DENUNCIAS else list(REINCIDENCIA_SCHEMA.keys())
-        ws.append_row(header)
+        # Cria cabeçalho se for nova
+        if sheet_name == SHEET_DENUNCIAS:
+            ws.append_row(DENUNCIA_SCHEMA)
+        elif sheet_name == SHEET_USUARIOS:
+            ws.append_row(["username", "password", "name", "role"])
+    return ws
 
-    return pd.DataFrame(ws.get_all_records())
+def load_data(sheet_name):
+    """Lê os dados e retorna um DataFrame limpo"""
+    ws = get_worksheet(sheet_name)
+    data = ws.get_all_records()
+    df = pd.DataFrame(data)
+    # Tratamento crucial para evitar erros de JSON depois
+    return df.fillna('')
 
+def add_row(sheet_name, row_dict, schema_order=None):
+    """Adiciona uma linha nova usando append (Mais seguro contra concorrência)"""
+    ws = get_worksheet(sheet_name)
+    
+    if schema_order:
+        # Garante a ordem das colunas
+        values = [str(row_dict.get(col, '')) for col in schema_order]
+    else:
+        values = [str(v) for v in row_dict.values()]
+        
+    ws.append_row(values)
 
-def save_sheet(sheet_name, df):
-    secrets = st.secrets.get("gcp_service_account")
-    if not secrets or "spreadsheet_key" not in secrets:
-        st.error(
-            "❌ A chave 'spreadsheet_key' não foi encontrada dentro de [gcp_service_account] nos Secrets."
-        )
-        st.stop()
-
-    spreadsheet_key = secrets["spreadsheet_key"]
-
-    gc = SheetsClient.get_client()
-    sh = gc.open_by_key(spreadsheet_key)
-    ws = sh.worksheet(sheet_name)
+def update_full_sheet(sheet_name, df):
+    """Atualiza a planilha inteira (Usar apenas para edições/deleções)"""
+    ws = get_worksheet(sheet_name)
     ws.clear()
-    ws.update([df.columns.tolist()] + df.values.tolist())
+    # Converte NaN para string vazia antes de enviar
+    df_clean = df.fillna('')
+    # Envia cabeçalho + dados
+    ws.update([df_clean.columns.tolist()] + df_clean.values.tolist())
 
-# ---------------------- AUTH ----------------------
+# ============================================================
+# AUTENTICAÇÃO E USUÁRIOS
+# ============================================================
 
-def hash_password(p):
-    return hashlib.sha256(p.encode()).hexdigest()
+def hash_password(password):
+    return hashlib.sha256(str(password).encode()).hexdigest()
 
+def init_users_if_empty():
+    """Cria os usuários padrão na planilha se a aba estiver vazia"""
+    df_users = load_data(SHEET_USUARIOS)
+    
+    if df_users.empty:
+        st.warning("Inicializando usuários padrão na planilha...")
+        default_pwd = hash_password("urb123")
+        
+        # Lista fixa solicitada
+        users_init = [
+            {"username": "suellen", "password": default_pwd, "name": "Suellen", "role": "admin"},
+            {"username": "edvaldo", "password": default_pwd, "name": "Edvaldo", "role": "user"},
+            {"username": "patricia", "password": default_pwd, "name": "Patricia", "role": "user"},
+            {"username": "raiany", "password": default_pwd, "name": "Raiany", "role": "user"},
+        ]
+        
+        # Salva na planilha
+        df_new = pd.DataFrame(users_init)
+        update_full_sheet(SHEET_USUARIOS, df_new)
+        return df_new
+    return df_users
 
-def load_users():
-    if not os.path.exists(USERS_PATH):
-        with open(USERS_PATH, 'w') as f:
-            json.dump([], f)
-    return json.load(open(USERS_PATH))
-
-
-def verify_user(u, p):
-    if u == 'admin' and p == 'admin':
-        return {'username':'admin','role':'admin'}
-    for user in load_users():
-        if user['username']==u and user['password']==hash_password(p):
-            return user
+def check_login(username, password):
+    df_users = init_users_if_empty() # Garante que existem usuários
+    hashed = hash_password(password)
+    
+    user = df_users[
+        (df_users['username'] == username.lower()) & 
+        (df_users['password'] == hashed)
+    ]
+    
+    if not user.empty:
+        return user.iloc[0].to_dict()
     return None
 
-# ---------------------- LOGIN ----------------------
+def change_password(username, new_password):
+    df_users = load_data(SHEET_USUARIOS)
+    new_hash = hash_password(new_password)
+    
+    # Atualiza o dataframe
+    df_users.loc[df_users['username'] == username, 'password'] = new_hash
+    
+    # Salva na planilha
+    update_full_sheet(SHEET_USUARIOS, df_users)
+    return True
+
+# ============================================================
+# INTERFACE - LOGIN
+# ============================================================
 if 'user' not in st.session_state:
     st.session_state.user = None
 
-if not st.session_state.user:
-    st.title("Login")
-    u = st.text_input("Usuário")
-    p = st.text_input("Senha", type='password')
-    if st.button("Entrar"):
-        user = verify_user(u,p)
-        if user:
-            st.session_state.user = user
-            st.rerun()
-        else:
-            st.error("Login inválido")
-    st.stop()
+if st.session_state.user is None:
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        st.title("🔐 URB Fiscalização")
+        st.markdown("Login de Acesso")
+        
+        with st.form("login_form"):
+            u = st.text_input("Usuário").strip()
+            p = st.text_input("Senha", type="password")
+            
+            if st.form_submit_button("Entrar"):
+                user_data = check_login(u, p)
+                if user_data:
+                    st.session_state.user = user_data
+                    st.success(f"Bem-vindo(a), {user_data['name']}!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha incorretos.")
+                    st.info("A senha padrão inicial é 'urb123'")
+    st.stop() # Para a execução aqui se não estiver logado
 
-# ---------------------- SIDEBAR ----------------------
-st.sidebar.title("URB Fiscalização")
-page = st.sidebar.selectbox("Menu", ["Dashboard","Registro","Histórico","Reincidências"])
+# ============================================================
+# INTERFACE - SIDEBAR
+# ============================================================
+user_info = st.session_state.user
 
-# ---------------------- DASHBOARD ----------------------
-if page == 'Dashboard': # OU QUALQUER NOME QUE SUA PÁGINA PRINCIPAL TENHA
-    st.header('Dashboard de Denúncias')
+st.sidebar.title(f"Olá, {user_info['name']}")
+st.sidebar.caption(f"Perfil: {user_info['role']}")
+
+page = st.sidebar.radio("Navegação", ["Dashboard", "Registrar Denúncia", "Histórico / Editar", "Reincidências"])
+
+st.sidebar.divider()
+
+# --- Alterar Senha ---
+with st.sidebar.expander("🔑 Alterar Minha Senha"):
+    with st.form("change_pwd"):
+        new_p1 = st.text_input("Nova Senha", type="password")
+        new_p2 = st.text_input("Confirmar Senha", type="password")
+        if st.form_submit_button("Atualizar"):
+            if new_p1 == new_p2 and len(new_p1) > 0:
+                change_password(user_info['username'], new_p1)
+                st.success("Senha alterada! Faça login novamente.")
+                st.session_state.user = None
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.error("Senhas não conferem ou vazias.")
+
+if st.sidebar.button("Sair"):
+    st.session_state.user = None
+    st.rerun()
+
+# ============================================================
+# PÁGINA 1: DASHBOARD
+# ============================================================
+if page == "Dashboard":
+    st.title("📊 Visão Geral")
+    df = load_data(SHEET_DENUNCIAS)
     
-    # 1. Carrega o DataFrame DENTRO do escopo da página
-    df = load_sheet(SHEET_DENUNCIAS)
+    if not df.empty and 'status' in df.columns:
+        cols = st.columns(4)
+        cols[0].metric("Total", len(df))
+        cols[1].metric("Pendentes", len(df[df['status'] == 'Pendente']))
+        cols[2].metric("Em Andamento", len(df[df['status'] == 'Em Andamento']))
+        cols[3].metric("Concluídas", len(df[df['status'] == 'Concluída']))
+        
+        st.divider()
+        st.subheader("Últimas Denúncias")
+        st.dataframe(df.tail(5)[['external_id', 'bairro', 'descricao', 'status']], use_container_width=True)
+    else:
+        st.info("Nenhuma denúncia registrada ainda.")
 
-    # 2. SE O DF FOI CARREGADO, FAZ O DEBUG
-    st.header("🛠️ STATUS DE CARREGAMENTO DE DADOS (DEBUG)")
+# ============================================================
+# PÁGINA 2: REGISTRO
+# ============================================================
+elif page == "Registrar Denúncia":
+    st.title("📝 Nova Denúncia")
     
-    # Verifique a variável df antes de usá-la
-    if df is not None:
-        st.write(f"DataFrame carregado com {len(df)} linhas.")
-        st.write(f"Colunas encontradas: {list(df.columns)}")
-        st.dataframe(df.head())
-    else:
-        st.error("Falha na autenticação ou carregamento. DataFrame é None.")
-
-    # 3. A LÓGICA DO DASHBOARD SÓ DEVE SER EXECUTADA SE O DF FOR VÁLIDO
-    if df is not None and not df.empty and 'status' in df.columns:
-        # Seu código das métricas (st.metric) aqui:
-        # ...
-    else:
-        st.error("Não foi possível carregar os dados da planilha de denúncias ou a coluna 'status' não foi encontrada. Verifique as credenciais e o nome das colunas da planilha.")
-
-if df is not None and not df.empty and 'status' in df.columns:
-    # O código original do Dashboard
-    STATUS_OPTS = ['Pendente', 'Concluída', 'Cancelada']
-
-    for status in STATUS_OPTS:
-        # AQUI É IMPORTANTE: len(df[df['status']==status])
-        # Se você está usando o Pandas, a sintaxe está correta. 
-        # A falha é na presença da coluna.
-        st.metric(status, len(df[df['status']==status]))
-
-else:
-    # Mensagem de erro se o DataFrame não foi carregado corretamente
-    st.error("Não foi possível carregar os dados da planilha de denúncias ou a coluna 'status' não foi encontrada. Verifique as credenciais e o nome das colunas da planilha.")
-
-# ---------------------- REGISTRO ----------------------
-if page == 'Registro':
-    st.subheader("Registrar Denúncia")
     with st.form('registro'):
-        origem = st.selectbox('Origem', OPCOES_ORIGEM)
-        tipo = st.selectbox('Tipo', OPCOES_TIPO)
+        col1, col2 = st.columns(2)
+        origem = col1.selectbox('Origem', OPCOES_ORIGEM)
+        tipo = col2.selectbox('Tipo', OPCOES_TIPO)
+        
         rua = st.text_input('Rua')
-        numero = st.text_input('Número')
-        bairro = st.text_input('Bairro')
-        zona = st.selectbox('Zona', OPCOES_ZONA)
-        descricao = st.text_area('Descrição')
-        quem = st.selectbox('Quem recebeu', OPCOES_FISCAIS)
-        submit = st.form_submit_button('Salvar')
+        c1, c2, c3 = st.columns(3)
+        numero = c1.text_input('Número')
+        bairro = c2.text_input('Bairro')
+        zona = c3.selectbox('Zona', OPCOES_ZONA)
+        
+        descricao = st.text_area('Descrição da Ocorrência')
+        quem = st.selectbox('Quem recebeu a denúncia', OPCOES_FISCAIS_SELECT)
+        
+        if st.form_submit_button('💾 Salvar Denúncia'):
+            if not rua or not descricao:
+                st.error("Rua e Descrição são obrigatórios.")
+            else:
+                # Gera ID
+                df = load_data(SHEET_DENUNCIAS)
+                new_id = len(df) + 1
+                ext_id = f"{new_id:04d}/{datetime.now().year}"
+                
+                record = {
+                    'id': new_id,
+                    'external_id': ext_id,
+                    'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'origem': origem,
+                    'tipo': tipo,
+                    'rua': rua,
+                    'numero': numero,
+                    'bairro': bairro,
+                    'zona': zona,
+                    'latitude': '',
+                    'longitude': '',
+                    'descricao': descricao,
+                    'quem_recebeu': quem,
+                    'status': 'Pendente',
+                    'acao_noturna': 'FALSE'
+                }
+                
+                # Usa APPEND (Mais seguro)
+                add_row(SHEET_DENUNCIAS, record, DENUNCIA_SCHEMA)
+                st.success(f"Denúncia {ext_id} registrada com sucesso!")
+                time.sleep(1)
+                st.rerun()
 
-    if submit:
-        record = normalize_record({}, DENUNCIA_SCHEMA)
-        record.update({
-            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'origem': origem,
-            'tipo': tipo,
-            'rua': rua,
-            'numero': numero,
-            'bairro': bairro,
-            'zona': zona,
-            'descricao': descricao,
-            'quem_recebeu': quem,
-        })
-        errors = validate_denuncia(record)
-        if errors:
-            for e in errors: st.error(e)
-        else:
-            df = load_sheet(SHEET_DENUNCIAS)
-            record['id'] = len(df)+1
-            record['external_id'] = f"{record['id']:04d}/{datetime.now().year}"
-            df = pd.concat([df, pd.DataFrame([record])])
-            save_sheet(SHEET_DENUNCIAS, df)
-            st.success("Denúncia registrada")
+# ============================================================
+# PÁGINA 3: HISTÓRICO E EDIÇÃO
+# ============================================================
+elif page == "Histórico / Editar":
+    st.title("🗂️ Gerenciar Denúncias")
+    df = load_data(SHEET_DENUNCIAS)
+    
+    if df.empty:
+        st.info("Sem dados.")
+        st.stop()
 
-# ---------------------- HISTÓRICO ----------------------
-if page == 'Histórico':
-    df = load_sheet(SHEET_DENUNCIAS)
-    st.subheader("Histórico")
+    # --- MODO DE EDIÇÃO (Lógica corrigida) ---
+    if 'edit_id' in st.session_state:
+        st.markdown("---")
+        st.subheader(f"✏️ Editando ID: {st.session_state.edit_id}")
+        
+        # Filtra a linha segura
+        try:
+            row_idx = df.index[df['id'] == st.session_state.edit_id].tolist()[0]
+            row_data = df.iloc[row_idx]
+            
+            with st.form("edit_form"):
+                # Campos editáveis
+                new_status = st.selectbox("Status", OPCOES_STATUS, index=OPCOES_STATUS.index(row_data['status']) if row_data['status'] in OPCOES_STATUS else 0)
+                new_desc = st.text_area("Descrição", value=row_data['descricao'])
+                
+                col_save, col_cancel = st.columns(2)
+                
+                save = col_save.form_submit_button("✅ Salvar Alterações")
+                # Botão cancelar fora do form é complicado, usando lógica simples:
+                
+                if save:
+                    # Atualiza DataFrame
+                    df.at[row_idx, 'status'] = new_status
+                    df.at[row_idx, 'descricao'] = new_desc
+                    
+                    # Salva TUDO no sheets
+                    update_full_sheet(SHEET_DENUNCIAS, df)
+                    
+                    st.success("Atualizado!")
+                    del st.session_state.edit_id
+                    time.sleep(1)
+                    st.rerun()
 
-    for _, row in df.iterrows():
+            if st.button("Cancelar Edição"):
+                del st.session_state.edit_id
+                st.rerun()
+                
+        except IndexError:
+            st.error("Erro ao encontrar registro. Tente recarregar.")
+            del st.session_state.edit_id
+
+        st.markdown("---")
+
+    # --- LISTAGEM ---
+    # Inverte para mostrar as mais recentes primeiro
+    df_display = df.sort_values(by='id', ascending=False)
+    
+    for idx, row in df_display.iterrows():
         with st.container(border=True):
-            st.write(f"**{row['external_id']}** - {row['status']}")
-            col1, col2 = st.columns(2)
-            if col1.button('✍️ Editar', key=f"e{row['id']}"):
+            cols = st.columns([1, 3, 1, 1])
+            cols[0].markdown(f"**{row['external_id']}**")
+            cols[0].caption(row['created_at'])
+            
+            cols[1].write(f"📍 {row['rua']}, {row['numero']} - {row['bairro']}")
+            cols[1].caption(f"{row['tipo']} | {row['descricao'][:60]}...")
+            
+            # Badge de Status
+            status_color = "orange" if row['status'] == "Pendente" else "green" if row['status'] == "Concluída" else "blue"
+            cols[2].markdown(f":{status_color}[{row['status']}]")
+            
+            if cols[3].button("Editar", key=f"btn_edit_{row['id']}"):
                 st.session_state.edit_id = row['id']
-            if col2.button('➕ Reincidência', key=f"r{row['id']}"):
-                st.session_state.reinc_id = row['external_id']
+                st.rerun()
 
-# ---------------------- REINCIDÊNCIAS ----------------------
-if page == 'Reincidências':
-    df = load_sheet(SHEET_REINCIDENCIAS)
-    st.subheader("Reincidências")
-    st.dataframe(df)
-
-    if 'reinc_id' in st.session_state:
-        st.markdown(f"### Nova reincidência para {st.session_state.reinc_id}")
-        with st.form('reinc'):
-            origem = st.selectbox('Origem', OPCOES_ORIGEM)
-            desc = st.text_area('Descrição')
-            submit = st.form_submit_button('Salvar')
-        if submit:
-            new = normalize_record({}, REINCIDENCIA_SCHEMA)
-            new.update({
-                'external_id': st.session_state.reinc_id,
-                'data_hora': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'origem': origem,
-                'descricao': desc
-            })
-            df = pd.concat([df, pd.DataFrame([new])])
-            save_sheet(SHEET_REINCIDENCIAS, df)
-            st.success('Reincidência registrada')
-            del st.session_state.reinc_id
-            st.rerun()
-
+# ============================================================
+# PÁGINA 4: REINCIDÊNCIAS
+# ============================================================
+elif page == "Reincidências":
+    st.title("🔄 Registro de Reincidência")
+    
+    # Selecionar a denúncia original
+    df_denuncias = load_data(SHEET_DENUNCIAS)
+    
+    if df_denuncias.empty:
+        st.warning("Não há denúncias para gerar reincidência.")
+    else:
+        # Cria uma lista formatada para o selectbox
+        df_denuncias['display_label'] = df_denuncias['external_id'] + " - " + df_denuncias['rua']
+        
+        escolha = st.selectbox("Selecione a Denúncia Original", df_denuncias['display_label'].tolist())
+        
+        if escolha:
+            # Pega o ID externo real
+            id_real = escolha.split(" - ")[0]
+            
+            with st.form("form_reincidencia"):
+                st.write(f"Vinculando nova ocorrência ao processo: **{id_real}**")
+                desc_reinc = st.text_area("Descrição da Reincidência / Nova Visita")
+                origem_reinc = st.selectbox("Origem", OPCOES_ORIGEM)
+                
+                if st.form_submit_button("Registrar Reincidência"):
+                    new_reinc = {
+                        "external_id": id_real,
+                        "data_hora": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        "origem": origem_reinc,
+                        "descricao": desc_reinc,
+                        "registrado_por": user_info['name']
+                    }
+                    add_row(SHEET_REINCIDENCIAS, new_reinc)
+                    st.success("Reincidência gravada!")
 
 
 
