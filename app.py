@@ -3,6 +3,7 @@ import pandas as pd
 import hashlib
 from datetime import datetime
 import time
+import pytz  # <--- NOVA IMPORTAÇÃO IMPORTANTE
 
 from google.oauth2 import service_account
 from gspread.exceptions import WorksheetNotFound
@@ -10,9 +11,13 @@ import gspread
 from fpdf import FPDF
 
 # ============================================================
-# CONFIGURAÇÃO INICIAL
+# CONFIGURAÇÃO INICIAL E FUSO HORÁRIO
 # ============================================================
 st.set_page_config(page_title="URB Fiscalização", layout="wide")
+
+# DEFINE O FUSO HORÁRIO (RECIFE/BRASILIA)
+FUSO_BR = pytz.timezone('America/Recife') 
+# Se preferir horário de Brasília, use: 'America/Sao_Paulo'
 
 # Nomes das abas na Planilha
 SHEET_DENUNCIAS = "denuncias_registro"
@@ -66,7 +71,7 @@ class SheetsClient:
         return cls._gc, cls._spreadsheet_key
 
 # ============================================================
-# FUNÇÃO GERADORA DE PDF (ÚNICA E ROBUSTA)
+# FUNÇÃO GERADORA DE PDF
 # ============================================================
 def clean_text(text):
     """Remove caracteres incompatíveis com o PDF padrão (latin-1)"""
@@ -107,7 +112,6 @@ def gerar_pdf(dados):
     pdf.cell(0, 10, clean_text("Relato / Historico de Reincidencias:"), ln=True)
     pdf.set_font("Arial", '', 12)
     
-    # Multi cell lida bem com as quebras de linha (\n) que vamos adicionar
     pdf.multi_cell(0, 7, clean_text(dados.get('descricao', '')))
     
     pdf.ln(20)
@@ -289,10 +293,13 @@ elif page == "Registrar Denúncia":
                 new_id = len(df) + 1
                 ext_id = f"{new_id:04d}/{datetime.now().year}"
                 
+                # --- CORREÇÃO DE DATA/HORA AQUI ---
+                agora_br = datetime.now(FUSO_BR).strftime('%Y-%m-%d %H:%M:%S')
+                
                 record = {
                     'id': new_id,
                     'external_id': ext_id,
-                    'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'created_at': agora_br,
                     'origem': origem,
                     'tipo': tipo,
                     'rua': rua,
@@ -396,7 +403,7 @@ elif page == "Histórico / Editar":
                 st.rerun()
 
 # ============================================================
-# PÁGINA 4: REINCIDÊNCIAS (MODIFICADA)
+# PÁGINA 4: REINCIDÊNCIAS
 # ============================================================
 elif page == "Reincidências":
     st.title("🔄 Registrar Reincidência")
@@ -430,29 +437,28 @@ elif page == "Reincidências":
                         if not desc_nova:
                             st.error("Escreva o relato da visita.")
                         else:
-                            # 1. Salva log na aba Reincidencias (para auditoria)
+                            # --- CORREÇÃO DE DATA/HORA AQUI ---
+                            agora_br = datetime.now(FUSO_BR).strftime('%Y-%m-%d %H:%M:%S')
+                            timestamp_txt = datetime.now(FUSO_BR).strftime('%d/%m/%Y %H:%M')
+                            
+                            # 1. Salva log na aba Reincidencias
                             rec = {
                                 "external_id": real_id,
-                                "data_hora": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                "data_hora": agora_br,
                                 "origem": origem,
                                 "descricao": desc_nova,
                                 "registrado_por": user_info['name']
                             }
                             add_row(SHEET_REINCIDENCIAS, rec, REINCIDENCIA_SCHEMA)
                             
-                            # 2. Atualiza a Denúncia Original (Engorda o texto + Abre status)
-                            timestamp = datetime.now().strftime('%d/%m/%Y %H:%M')
-                            
-                            # Formata o bloco de texto para separar bem
-                            texto_adicional = f"\n\n{'='*20}\n[REINCIDÊNCIA - {timestamp}]\nFiscal: {user_info['name']}\nOrigem: {origem}\n\n{desc_nova}"
+                            # 2. Atualiza a Denúncia Original
+                            texto_adicional = f"\n\n{'='*20}\n[REINCIDÊNCIA - {timestamp_txt}]\nFiscal: {user_info['name']}\nOrigem: {origem}\n\n{desc_nova}"
                             
                             nova_descricao_completa = str(desc_atual) + texto_adicional
                             
-                            # Atualiza DataFrame
                             df_den.at[row_idx, 'descricao'] = nova_descricao_completa
-                            df_den.at[row_idx, 'status'] = 'Pendente' # Força reabertura
+                            df_den.at[row_idx, 'status'] = 'Pendente'
                             
-                            # Salva na Planilha Principal
                             update_full_sheet(SHEET_DENUNCIAS, df_den)
                             
                             st.success("Reincidência gravada! Caso reaberto como Pendente.")
