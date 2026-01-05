@@ -14,7 +14,7 @@ from fpdf import FPDF
 # CONFIGURAÇÃO INICIAL E FUSO
 # ============================================================
 st.set_page_config(page_title="URB Fiscalização", layout="wide")
-FUSO_BR = pytz.timezone('America/Recife') 
+FUSO_BR = pytz.timezone('America/Recife')
 
 # Nomes das abas
 SHEET_DENUNCIAS = "denuncias_registro"
@@ -467,6 +467,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
