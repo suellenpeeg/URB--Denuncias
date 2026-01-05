@@ -26,7 +26,7 @@ OPCOES_STATUS = ['Pendente', 'Em Andamento', 'Concluída', 'Arquivada']
 OPCOES_ORIGEM = ['Pessoalmente','Telefone','Whatsapp','Ministério Publico','Administração','Ouvidoria','Disk Denuncia']
 OPCOES_TIPO = ['Urbana','Ambiental','Urbana e Ambiental']
 OPCOES_ZONA = ['NORTE','SUL','LESTE','OESTE','CENTRO']
-OPCOES_FISCAIS_SELECT = ['EDVALDO','PATRICIA','RAIANY','SUELLEN']
+OPCOES_FISCAIS_SELECT = ['Edvaldo Wilson Bezerra da Silva - 000.323','PATRICIA MIRELLY BEZERRA CAMPOS - 000.332','Raiany Nayara de Lima - 000.362','Suellen Bezerra do Nascimeto - 000.417']
 
 # SCHEMAS (Apenas referência, agora o salvamento é dinâmico)
 DENUNCIA_SCHEMA = [
@@ -467,6 +467,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
