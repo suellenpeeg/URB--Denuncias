@@ -410,63 +410,128 @@ elif page == "Registrar Denúncia":
                 st.rerun()
 
 # ============================================================
-# PÁGINA 3: HISTÓRICO
+# PÁGINA 3: HISTÓRICO / GERENCIAMENTO (COM FILTROS E EXCLUSÃO)
 # ============================================================
 elif page == "Histórico / Editar":
-    st.title("🗂️ Gerenciar")
+    st.title("🗂️ Gerenciamento de Ocorrências")
+    
+    # Carregar dados atualizados
     df = load_data(SHEET_DENUNCIAS)
     
     if df.empty:
-        st.warning("Vazio.")
+        st.warning("Nenhum registro encontrado no banco de dados.")
         st.stop()
 
+    # --- SEÇÃO DE FILTROS ---
+    with st.expander("🔍 Filtros de Busca", expanded=False):
+        c1, c2, c3, c4 = st.columns(4)
+        f_bairro = c1.text_input("Bairro")
+        f_zona = c2.selectbox("Zona", ["Todos"] + OPCOES_ZONA)
+        f_status = c3.selectbox("Status", ["Todos"] + OPCOES_STATUS)
+        f_id = c4.text_input("Nº da OS (Ex: 0001)")
+
+    # Aplicar Filtros no DataFrame
+    df_filtrado = df.copy()
+    if f_bairro:
+        df_filtrado = df_filtrado[df_filtrado['bairro'].str.contains(f_bairro, case=False, na=False)]
+    if f_zona != "Todos":
+        df_filtrado = df_filtrado[df_filtrado['zona'] == f_zona]
+    if f_status != "Todos":
+        df_filtrado = df_filtrado[df_filtrado['status'] == f_status]
+    if f_id:
+        df_filtrado = df_filtrado[df_filtrado['external_id'].str.contains(f_id, na=False)]
+
+    # --- LÓGICA DE EDIÇÃO (MODAL SIMULADO) ---
     if 'edit_id' in st.session_state:
         st.markdown("---")
-        st.info(f"✏️ Editando: {st.session_state.edit_id}")
-        row_idx_list = df.index[df['id'] == st.session_state.edit_id].tolist()
+        st.subheader(f"📝 Editando OS: {st.session_state.edit_id}")
+        idx_list = df.index[df['id'] == st.session_state.edit_id].tolist()
         
-        if row_idx_list:
-            idx = row_idx_list[0]
+        if idx_list:
+            idx = idx_list[0]
             row_data = df.iloc[idx]
-            with st.form("edit"):
-                curr_st = row_data.get('status', 'Pendente')
-                if str(curr_st).upper() == 'FALSE': curr_st = 'Pendente'
-                idx_st = OPCOES_STATUS.index(curr_st) if curr_st in OPCOES_STATUS else 0
-                nst = st.selectbox("Status", OPCOES_STATUS, index=idx_st)
-                ndesc = st.text_area("Descrição", value=row_data.get('descricao', ''), height=150)
-                if st.form_submit_button("✅ Salvar"):
-                    df.at[idx, 'status'] = nst
-                    df.at[idx, 'descricao'] = ndesc
+            
+            with st.form("form_edicao"):
+                col_e1, col_e2 = st.columns(2)
+                novo_status = col_e1.selectbox("Alterar Status", OPCOES_STATUS, 
+                                             index=OPCOES_STATUS.index(row_data['status']) if row_data['status'] in OPCOES_STATUS else 0)
+                nova_zona = col_e2.selectbox("Alterar Zona", OPCOES_ZONA,
+                                           index=OPCOES_ZONA.index(row_data['zona']) if row_data['zona'] in OPCOES_ZONA else 0)
+                
+                nova_rua = st.text_input("Rua", value=row_data.get('rua', ''))
+                nova_desc = st.text_area("Descrição dos Fatos", value=row_data.get('descricao', ''), height=150)
+                
+                c_btn1, c_btn2 = st.columns([1, 5])
+                if c_btn1.form_submit_button("💾 Atualizar"):
+                    df.at[idx, 'status'] = novo_status
+                    df.at[idx, 'zona'] = nova_zona
+                    df.at[idx, 'rua'] = nova_rua
+                    df.at[idx, 'descricao'] = nova_desc
+                    
                     update_full_sheet(SHEET_DENUNCIAS, df)
-                    st.success("Salvo!")
+                    st.success("Informações atualizadas com sucesso!")
                     del st.session_state.edit_id
                     time.sleep(1)
                     st.rerun()
-            if st.button("Cancelar"):
-                del st.session_state.edit_id
-                st.rerun()
+                
+                if c_btn2.form_submit_button("Cancelar"):
+                    del st.session_state.edit_id
+                    st.rerun()
         st.markdown("---")
 
-    df_display = df.sort_values(by='id', ascending=False)
-    for idx, row in df_display.iterrows():
+    # --- LISTAGEM DE CARDS ---
+    st.write(f"Exibindo **{len(df_filtrado)}** registros")
+    
+    # Ordenar por ID decrescente (mais recentes primeiro)
+    df_filtrado = df_filtrado.sort_values(by='id', ascending=False)
+
+    for _, row in df_filtrado.iterrows():
         with st.container(border=True):
-            cols = st.columns([1, 3, 1.2, 0.6, 0.6])
-            cols[0].markdown(f"**{row.get('external_id','')}**")
-            cols[0].caption(row.get('created_at',''))
-            cols[1].write(f"📍 {row.get('rua','')} - {row.get('bairro','')}")
-            cols[1].caption(f"{row.get('tipo','')} | {str(row.get('descricao',''))[:50]}...")
-            st_val = str(row.get('status',''))
-            st_dsp = "Pendente" if st_val.upper() == 'FALSE' else st_val
-            clr = "orange" if st_dsp == "Pendente" else "green" if st_dsp == "Concluída" else "blue"
-            cols[2].markdown(f":{clr}[**{st_dsp}**]")
-           # Col 4: Botão PDF
-            result_pdf = gerar_pdf(row)
-            if isinstance(result_pdf, bytes):
-                cols[3].download_button("📄", result_pdf, f"OS_{row.get('external_id','').replace('/','-')}.pdf", "application/pdf", key=f"pdf_{row['id']}")
-            else:
-                # Se não for bytes, é a mensagem de erro que retornamos na função
-                cols[3].error("Erro")
-                cols[3].caption(result_pdf) # Mostra qual foi o erro técnico (ex: border error)
+            # Layout de colunas: Info | Status | Ações
+            c_info, c_status, c_pdf, c_edit, c_del = st.columns([3, 1, 0.5, 0.5, 0.5])
+            
+            # Coluna Informações
+            c_info.markdown(f"### OS {row['external_id']}")
+            c_info.write(f"📍 **{row['rua']}**, {row['numero']} - {row['bairro']} ({row['zona']})")
+            c_info.caption(f"🗓️ {row['created_at']} | 👤 {row['quem_recebeu']}")
+            
+            # Coluna Status com cor
+            st_val = str(row['status'])
+            clr = "orange" if st_val == "Pendente" else "green" if st_val == "Concluída" else "blue"
+            c_status.markdown(f"<br>:{clr}[**{st_val.upper()}**]", unsafe_allow_html=True)
+            
+            # Coluna PDF
+            res_pdf = gerar_pdf(row)
+            if isinstance(res_pdf, bytes):
+                c_pdf.markdown("<br>", unsafe_allow_html=True)
+                c_pdf.download_button("📄", res_pdf, f"OS_{row['external_id']}.pdf", "application/pdf", key=f"pdf_{row['id']}")
+            
+            # Coluna Editar
+            c_edit.markdown("<br>", unsafe_allow_html=True)
+            if c_edit.button("✏️", key=f"ed_{row['id']}"):
+                st.session_state.edit_id = row['id']
+                st.rerun()
+                
+            # Coluna Excluir (com confirmação via popover ou session_state)
+            c_del.markdown("<br>", unsafe_allow_html=True)
+            if c_del.button("🗑️", key=f"del_{row['id']}", help="Excluir Permanentemente"):
+                st.session_state.confirm_del = row['id']
+
+            # Alerta de Confirmação de Exclusão
+            if 'confirm_del' in st.session_state and st.session_state.confirm_del == row['id']:
+                st.error(f"⚠️ Tem certeza que deseja excluir a OS {row['external_id']}?")
+                ca1, ca2 = st.columns([1, 8])
+                if ca1.button("Sim, Excluir", key=f"conf_{row['id']}"):
+                    # Remove do DataFrame e atualiza a planilha
+                    df_final = df[df['id'] != row['id']]
+                    update_full_sheet(SHEET_DENUNCIAS, df_final)
+                    st.success("Registro removido!")
+                    del st.session_state.confirm_del
+                    time.sleep(1)
+                    st.rerun()
+                if ca2.button("Não, Voltar", key=f"back_{row['id']}"):
+                    del st.session_state.confirm_del
+                    st.rerun()
 
 # ============================================================
 # PÁGINA 4: REINCIDÊNCIAS
@@ -499,6 +564,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
