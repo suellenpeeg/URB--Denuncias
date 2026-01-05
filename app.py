@@ -71,77 +71,79 @@ class SheetsClient:
 # FUNÇÃO GERADORA DE PDF (CORRIGIDA VISUALMENTE)
 # ============================================================
 def gerar_pdf(dados):
-    pdf = FPDF()
-    pdf.add_page()
-    
-    # --- CONFIGURAÇÕES DE CORES E ESTILO ---
-    pdf.set_fill_color(230, 230, 230)  # Cinza claro para os cabeçalhos das tabelas
-    pdf.set_draw_color(50, 50, 50)     # Cor das linhas
-    
-    # --- CABEÇALHO (LOGOS E TÍTULO) ---
-    # Nota: Se você tiver os arquivos de imagem, use: pdf.image('logo.png', x, y, w)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, clean_text("Autarquia de Urbanização e Meio Ambiente de Caruaru"), ln=True, align='C')
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 8, clean_text("Central de Atendimento"), ln=True, align='C')
-    pdf.ln(2)
+    try:
+        pdf = FPDF()
+        pdf.add_page()
+        
+        # --- CONFIGURAÇÕES DE ESTILO ---
+        pdf.set_fill_color(230, 230, 230) 
+        pdf.set_draw_color(50, 50, 50)     
+        
+        # --- CABEÇALHO ---
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 8, clean_text("Autarquia de Urbanização e Meio Ambiente de Caruaru"), ln=True, align='C')
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 8, clean_text("Central de Atendimento"), ln=True, align='C')
+        pdf.ln(2)
 
-    # --- LINHA 1: ORDEM DE SERVIÇO ---
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 6, clean_text(f" ORDEM DE SERVIÇO - SETOR URBANO"), border=1, ln=True, fill=True)
-    
-    # --- LINHA 2: ID, DATA, HORA, ORIGEM ---
-    pdf.set_font("Arial", 'B', 8)
-    pdf.cell(30, 6, clean_text(f" N°: {dados.get('external_id','')}"), border=1)
-    pdf.cell(40, 6, clean_text(f" DATA: {dados.get('created_at','')[:10]}"), border=1)
-    pdf.cell(30, 6, clean_text(f" HORA: {dados.get('created_at','')[11:16]}"), border=1)
-    pdf.cell(90, 6, clean_text(f" ORIGEM: {dados.get('origem','').upper()}"), border=1, ln=True)
+        # --- LINHA 1: TÍTULO DA SEÇÃO ---
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(0, 6, clean_text(" ORDEM DE SERVIÇO - SETOR URBANO"), border=1, ln=True, fill=True)
+        
+        # --- LINHA 2: DADOS BÁSICOS ---
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(40, 6, clean_text(f" N°: {dados.get('external_id','')}"), border=1)
+        pdf.cell(40, 6, clean_text(f" DATA: {str(dados.get('created_at',''))[:10]}"), border=1)
+        pdf.cell(40, 6, clean_text(f" HORA: {str(dados.get('created_at',''))[11:16]}"), border=1)
+        pdf.cell(70, 6, clean_text(f" ORIGEM: {str(dados.get('origem','')).upper()}"), border=1, ln=True)
 
-    # --- LINHA 3: BAIRRO E ZONA ---
-    pdf.cell(140, 6, clean_text(f" BAIRRO OU DISTRITO: {dados.get('bairro','').upper()}"), border=1)
-    pdf.cell(50, 6, clean_text(f" ZONA: {dados.get('zona','').upper()}"), border=1, ln=True)
+        # --- LINHA 3: LOCALIZAÇÃO ---
+        pdf.cell(140, 6, clean_text(f" BAIRRO OU DISTRITO: {str(dados.get('bairro','')).upper()}"), border=1)
+        pdf.cell(50, 6, clean_text(f" ZONA: {str(dados.get('zona','')).upper()}"), border=1, ln=True)
 
-    # --- SEÇÃO: DESCRIÇÃO ---
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 6, clean_text(" DESCRIÇÃO DA ORDEM DE SERVIÇO"), border=1, ln=True, fill=True)
-    pdf.set_font("Arial", '', 9)
-    # Multi_cell para o texto longo da denúncia
-    desc_texto = clean_text(dados.get('descricao', ''))
-    pdf.multi_cell(0, 5, desc_texto, border=1)
+        # --- SEÇÃO: DESCRIÇÃO ---
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(0, 6, clean_text(" DESCRIÇÃO DA ORDEM DE SERVIÇO"), border=1, ln=True, fill=True)
+        pdf.set_font("Arial", '', 9)
+        desc_texto = clean_text(dados.get('descricao', ''))
+        pdf.multi_cell(0, 5, desc_texto, border=1)
 
-    # --- SEÇÃO: LOCAL DA OCORRÊNCIA ---
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 6, clean_text(" LOCAL DA OCORRÊNCIA"), border=1, ln=True, fill=True)
-    pdf.set_font("Arial", 'B', 8)
-    pdf.cell(150, 6, clean_text(f" LOGRADOURO: {dados.get('rua','')} (N°: {dados.get('numero','')})"), border=1)
-    pdf.cell(40, 6, clean_text(" CARUARU-PE"), border=1, ln=True)
+        # --- SEÇÃO: ENDEREÇO DETALHADO ---
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(0, 6, clean_text(" LOCAL DA OCORRÊNCIA"), border=1, ln=True, fill=True)
+        pdf.set_font("Arial", 'B', 8)
+        # Ajuste de largura para caber na página (150 + 40 = 190mm)
+        pdf.cell(150, 6, clean_text(f" LOGRADOURO: {dados.get('rua','')} (N°: {dados.get('numero','')})"), border=1)
+        pdf.cell(40, 6, clean_text(" CARUARU-PE"), border=1, ln=True)
 
-    # --- SEÇÃO: RECEBIDO POR ---
-    pdf.set_font("Arial", 'B', 8)
-    pdf.cell(140, 15, clean_text(f" RECEBIDO POR: {dados.get('quem_recebeu','')}"), border=1)
-    pdf.cell(50, 15, clean_text(" Rubrica:"), border=1, ln=True)
+        # --- SEÇÃO: ASSINATURAS ---
+        pdf.cell(140, 15, clean_text(f" RECEBIDO POR: {dados.get('quem_recebeu','')}"), border=1)
+        pdf.cell(50, 15, clean_text(" Rubrica:"), border=1, ln=True)
 
-    # --- SEÇÃO: CAMPO PARA FISCALIZAÇÃO (Vazio para preenchimento manual) ---
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 6, clean_text(" INFORMAÇÕES DA FISCALIZAÇÃO"), border=1, ln=True, fill=True)
-    pdf.set_font("Arial", 'B', 8)
-    pdf.cell(140, 6, clean_text(" DATA DA VISTORIA: ____/____/____   HORA: ____:____"), border=1)
-    pdf.cell(50, 6, clean_text(" Rubrica:"), border=1, ln=True)
-    
-    # Espaço grande para observações manuais
-    pdf.cell(0, 60, clean_text(" OBSERVAÇÕES E DESCRIÇÃO DA OCORRÊNCIA:"), border=1, ln=True, align='T')
+        # --- SEÇÃO: CAMPO PARA FISCALIZAÇÃO ---
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(0, 6, clean_text(" INFORMAÇÕES DA FISCALIZAÇÃO"), border=1, ln=True, fill=True)
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(140, 6, clean_text(" DATA DA VISTORIA: ____/____/____   HORA: ____:____"), border=1)
+        pdf.cell(50, 6, clean_text(" Rubrica:"), border=1, ln=True)
+        
+        # O erro estava no align='T'. Removido para compatibilidade.
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(0, 6, clean_text(" OBSERVAÇÕES E DESCRIÇÃO DA OCORRÊNCIA:"), border='LTR', ln=True)
+        pdf.cell(0, 50, "", border='LBR', ln=True) # Cria o box vazio de 50mm de altura
 
-    # --- RODAPÉ ---
-    pdf.ln(5)
-    pdf.set_font("Arial", 'B', 8)
-    pdf.cell(0, 4, clean_text("Autarquia de Urbanização e Meio Ambiente de Caruaru - URB"), ln=True, align='C')
-    pdf.set_font("Arial", '', 7)
-    pdf.cell(0, 4, clean_text("Rua Visconde de Inhaúma, 1991. Bairro Maurício de Nassau"), ln=True, align='C')
+        # --- RODAPÉ ---
+        pdf.ln(5)
+        pdf.set_font("Arial", 'B', 7)
+        pdf.cell(0, 4, clean_text("Autarquia de Urbanização e Meio Ambiente de Caruaru - URB"), ln=True, align='C')
+        pdf.cell(0, 4, clean_text("Rua Visconde de Inhaúma, 1991. Bairro Maurício de Nassau | Tel: (81) 3101-0108"), ln=True, align='C')
 
-    # Output seguro
-    pdf_content = pdf.output(dest='S')
-    return bytes(pdf_content) if not isinstance(pdf_content, str) else pdf_content.encode('latin-1')
-
+        # Geração do output em bytes
+        return pdf.output(dest='S').encode('latin-1')
+        
+    except Exception as e:
+        print(f"Erro ao gerar PDF: {e}")
+        return None
 # ============================================================
 # FUNÇÕES DE BANCO DE DADOS (AGORA INTELIGENTES)
 # ============================================================
@@ -478,6 +480,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
