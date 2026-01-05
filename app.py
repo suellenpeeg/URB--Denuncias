@@ -3,7 +3,6 @@ import pandas as pd
 import hashlib
 from datetime import datetime
 import time
-import pytz 
 
 from google.oauth2 import service_account
 from gspread.exceptions import WorksheetNotFound
@@ -467,6 +466,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
