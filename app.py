@@ -72,10 +72,12 @@ class SheetsClient:
 # ============================================================
 def gerar_pdf(dados):
     try:
+        # Inicializa o PDF
         pdf = FPDF()
         pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
         
-        # --- CONFIGURAÇÕES DE ESTILO ---
+        # Configurações de estilo (Cores da URB)
         pdf.set_fill_color(230, 230, 230) 
         pdf.set_draw_color(50, 50, 50)     
         
@@ -86,63 +88,75 @@ def gerar_pdf(dados):
         pdf.cell(0, 8, clean_text("Central de Atendimento"), ln=True, align='C')
         pdf.ln(2)
 
-        # --- LINHA 1: TÍTULO DA SEÇÃO ---
+        # --- LINHA 1: TÍTULO ---
         pdf.set_font("Arial", 'B', 10)
         pdf.cell(0, 6, clean_text(" ORDEM DE SERVIÇO - SETOR URBANO"), border=1, ln=True, fill=True)
         
-        # --- LINHA 2: DADOS BÁSICOS ---
+        # --- LINHA 2: DADOS (Com tratamento de string para evitar erros) ---
         pdf.set_font("Arial", 'B', 8)
-        pdf.cell(40, 6, clean_text(f" N°: {dados.get('external_id','')}"), border=1)
-        pdf.cell(40, 6, clean_text(f" DATA: {str(dados.get('created_at',''))[:10]}"), border=1)
-        pdf.cell(40, 6, clean_text(f" HORA: {str(dados.get('created_at',''))[11:16]}"), border=1)
-        pdf.cell(70, 6, clean_text(f" ORIGEM: {str(dados.get('origem','')).upper()}"), border=1, ln=True)
+        id_ext = str(dados.get('external_id', ''))
+        data_criacao = str(dados.get('created_at', ''))
+        origem_txt = str(dados.get('origem', '')).upper()
+        
+        pdf.cell(40, 6, clean_text(f" N°: {id_ext}"), border=1)
+        pdf.cell(40, 6, clean_text(f" DATA: {data_criacao[:10]}"), border=1)
+        pdf.cell(40, 6, clean_text(f" HORA: {data_criacao[11:16]}"), border=1)
+        pdf.cell(70, 6, clean_text(f" ORIGEM: {origem_txt}"), border=1, ln=True)
 
         # --- LINHA 3: LOCALIZAÇÃO ---
-        pdf.cell(140, 6, clean_text(f" BAIRRO OU DISTRITO: {str(dados.get('bairro','')).upper()}"), border=1)
-        pdf.cell(50, 6, clean_text(f" ZONA: {str(dados.get('zona','')).upper()}"), border=1, ln=True)
+        bairro_txt = str(dados.get('bairro', '')).upper()
+        zona_txt = str(dados.get('zona', '')).upper()
+        pdf.cell(140, 6, clean_text(f" BAIRRO OU DISTRITO: {bairro_txt}"), border=1)
+        pdf.cell(50, 6, clean_text(f" ZONA: {zona_txt}"), border=1, ln=True)
 
         # --- SEÇÃO: DESCRIÇÃO ---
         pdf.set_font("Arial", 'B', 10)
         pdf.cell(0, 6, clean_text(" DESCRIÇÃO DA ORDEM DE SERVIÇO"), border=1, ln=True, fill=True)
         pdf.set_font("Arial", '', 9)
-        desc_texto = clean_text(dados.get('descricao', ''))
+        desc_texto = clean_text(str(dados.get('descricao', '')))
         pdf.multi_cell(0, 5, desc_texto, border=1)
 
-        # --- SEÇÃO: ENDEREÇO DETALHADO ---
+        # --- SEÇÃO: LOCAL DA OCORRÊNCIA ---
         pdf.set_font("Arial", 'B', 10)
         pdf.cell(0, 6, clean_text(" LOCAL DA OCORRÊNCIA"), border=1, ln=True, fill=True)
         pdf.set_font("Arial", 'B', 8)
-        # Ajuste de largura para caber na página (150 + 40 = 190mm)
-        pdf.cell(150, 6, clean_text(f" LOGRADOURO: {dados.get('rua','')} (N°: {dados.get('numero','')})"), border=1)
+        rua_txt = str(dados.get('rua', ''))
+        num_txt = str(dados.get('numero', ''))
+        pdf.cell(150, 6, clean_text(f" LOGRADOURO: {rua_txt} (N°: {num_txt})"), border=1)
         pdf.cell(40, 6, clean_text(" CARUARU-PE"), border=1, ln=True)
 
-        # --- SEÇÃO: ASSINATURAS ---
-        pdf.cell(140, 15, clean_text(f" RECEBIDO POR: {dados.get('quem_recebeu','')}"), border=1)
+        # --- SEÇÃO: RECEBIMENTO ---
+        fiscal_txt = str(dados.get('quem_recebeu', ''))
+        pdf.cell(140, 15, clean_text(f" RECEBIDO POR: {fiscal_txt}"), border=1)
         pdf.cell(50, 15, clean_text(" Rubrica:"), border=1, ln=True)
 
-        # --- SEÇÃO: CAMPO PARA FISCALIZAÇÃO ---
+        # --- SEÇÃO: FISCALIZAÇÃO ---
         pdf.set_font("Arial", 'B', 10)
         pdf.cell(0, 6, clean_text(" INFORMAÇÕES DA FISCALIZAÇÃO"), border=1, ln=True, fill=True)
         pdf.set_font("Arial", 'B', 8)
         pdf.cell(140, 6, clean_text(" DATA DA VISTORIA: ____/____/____   HORA: ____:____"), border=1)
         pdf.cell(50, 6, clean_text(" Rubrica:"), border=1, ln=True)
         
-        # O erro estava no align='T'. Removido para compatibilidade.
         pdf.set_font("Arial", 'B', 8)
         pdf.cell(0, 6, clean_text(" OBSERVAÇÕES E DESCRIÇÃO DA OCORRÊNCIA:"), border='LTR', ln=True)
-        pdf.cell(0, 50, "", border='LBR', ln=True) # Cria o box vazio de 50mm de altura
+        pdf.cell(0, 45, "", border='LBR', ln=True)
 
         # --- RODAPÉ ---
-        pdf.ln(5)
+        pdf.ln(4)
         pdf.set_font("Arial", 'B', 7)
         pdf.cell(0, 4, clean_text("Autarquia de Urbanização e Meio Ambiente de Caruaru - URB"), ln=True, align='C')
-        pdf.cell(0, 4, clean_text("Rua Visconde de Inhaúma, 1991. Bairro Maurício de Nassau | Tel: (81) 3101-0108"), ln=True, align='C')
+        pdf.set_font("Arial", '', 7)
+        pdf.cell(0, 4, clean_text("Rua Visconde de Inhaúma, 1991. Bairro Maurício de Nassau | (81) 3101-0108"), ln=True, align='C')
 
-        # Geração do output em bytes
-        return pdf.output(dest='S').encode('latin-1')
+        # O segredo do erro no Streamlit costuma ser aqui:
+        output = pdf.output(dest='S')
+        if isinstance(output, str):
+            return output.encode('latin-1', errors='ignore')
+        return bytes(output)
         
     except Exception as e:
-        print(f"Erro ao gerar PDF: {e}")
+        # Se der erro, ele vai imprimir no terminal para você saber o que foi
+        st.error(f"Erro interno no gerador de PDF: {e}")
         return None
 # ============================================================
 # FUNÇÕES DE BANCO DE DADOS (AGORA INTELIGENTES)
@@ -480,6 +494,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
