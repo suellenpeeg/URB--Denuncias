@@ -70,66 +70,77 @@ class SheetsClient:
 # ============================================================
 # FUNÇÃO GERADORA DE PDF (CORRIGIDA VISUALMENTE)
 # ============================================================
-def clean_text(text):
-    if text is None: return ""
-    return str(text).encode('latin-1', 'replace').decode('latin-1')
-
 def gerar_pdf(dados):
     pdf = FPDF()
     pdf.add_page()
     
-    # --- TRATAMENTO DE ERROS DE DADOS ANTIGOS ---
-    status_display = str(dados.get('status', ''))
-    fiscal_display = str(dados.get('quem_recebeu', ''))
+    # --- CONFIGURAÇÕES DE CORES E ESTILO ---
+    pdf.set_fill_color(230, 230, 230)  # Cinza claro para os cabeçalhos das tabelas
+    pdf.set_draw_color(50, 50, 50)     # Cor das linhas
     
-    # Se o status estiver como FALSE (erro de coluna), força Pendente
-    if status_display.upper() == 'FALSE':
-        status_display = "Pendente"
-        
-    # Se o fiscal estiver como Pendente (coluna trocada), tenta limpar
-    if fiscal_display in OPCOES_STATUS: 
-        fiscal_display = "Nao Informado (Erro Cadastro)"
-
-    # Cabeçalho
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, clean_text(f"ORDEM DE SERVICO - {dados['external_id']}"), ln=True, align='C')
-    pdf.line(10, 20, 200, 20)
-    pdf.ln(10)
-    
-    # Dados
-    pdf.set_font("Arial", size=12)
-    campos = [
-        ("Data Abertura", dados.get('created_at', '')),
-        ("Status Atual", status_display),  # Usa a variável corrigida
-        ("Tipo", dados.get('tipo', '')),
-        ("Origem", dados.get('origem', '')),
-        ("Fiscal Responsavel", fiscal_display), # Usa a variável corrigida
-        ("Endereco", f"{dados.get('rua','')} , {dados.get('numero','')} - {dados.get('bairro','')}"),
-        ("Zona", dados.get('zona', '')),
-    ]
-    for titulo, valor in campos:
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(50, 10, clean_text(f"{titulo}:"), border=0)
-        pdf.set_font("Arial", '', 12)
-        pdf.cell(0, 10, clean_text(valor), ln=True)
-        
-    pdf.ln(5)
-    
-    # Descrição
+    # --- CABEÇALHO (LOGOS E TÍTULO) ---
+    # Nota: Se você tiver os arquivos de imagem, use: pdf.image('logo.png', x, y, w)
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, clean_text("Relato / Historico:"), ln=True)
-    pdf.set_font("Arial", '', 12)
-    pdf.multi_cell(0, 7, clean_text(dados.get('descricao', '')))
+    pdf.cell(0, 8, clean_text("Autarquia de Urbanização e Meio Ambiente de Caruaru"), ln=True, align='C')
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(0, 8, clean_text("Central de Atendimento"), ln=True, align='C')
+    pdf.ln(2)
+
+    # --- LINHA 1: ORDEM DE SERVIÇO ---
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, clean_text(f" ORDEM DE SERVIÇO - SETOR URBANO"), border=1, ln=True, fill=True)
     
-    pdf.ln(20)
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.cell(0, 10, clean_text("Assinatura do Responsavel"), align='R')
+    # --- LINHA 2: ID, DATA, HORA, ORIGEM ---
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(30, 6, clean_text(f" N°: {dados.get('external_id','')}"), border=1)
+    pdf.cell(40, 6, clean_text(f" DATA: {dados.get('created_at','')[:10]}"), border=1)
+    pdf.cell(30, 6, clean_text(f" HORA: {dados.get('created_at','')[11:16]}"), border=1)
+    pdf.cell(90, 6, clean_text(f" ORIGEM: {dados.get('origem','').upper()}"), border=1, ln=True)
+
+    # --- LINHA 3: BAIRRO E ZONA ---
+    pdf.cell(140, 6, clean_text(f" BAIRRO OU DISTRITO: {dados.get('bairro','').upper()}"), border=1)
+    pdf.cell(50, 6, clean_text(f" ZONA: {dados.get('zona','').upper()}"), border=1, ln=True)
+
+    # --- SEÇÃO: DESCRIÇÃO ---
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, clean_text(" DESCRIÇÃO DA ORDEM DE SERVIÇO"), border=1, ln=True, fill=True)
+    pdf.set_font("Arial", '', 9)
+    # Multi_cell para o texto longo da denúncia
+    desc_texto = clean_text(dados.get('descricao', ''))
+    pdf.multi_cell(0, 5, desc_texto, border=1)
+
+    # --- SEÇÃO: LOCAL DA OCORRÊNCIA ---
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, clean_text(" LOCAL DA OCORRÊNCIA"), border=1, ln=True, fill=True)
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(150, 6, clean_text(f" LOGRADOURO: {dados.get('rua','')} (N°: {dados.get('numero','')})"), border=1)
+    pdf.cell(40, 6, clean_text(" CARUARU-PE"), border=1, ln=True)
+
+    # --- SEÇÃO: RECEBIDO POR ---
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(140, 15, clean_text(f" RECEBIDO POR: {dados.get('quem_recebeu','')}"), border=1)
+    pdf.cell(50, 15, clean_text(" Rubrica:"), border=1, ln=True)
+
+    # --- SEÇÃO: CAMPO PARA FISCALIZAÇÃO (Vazio para preenchimento manual) ---
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, clean_text(" INFORMAÇÕES DA FISCALIZAÇÃO"), border=1, ln=True, fill=True)
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(140, 6, clean_text(" DATA DA VISTORIA: ____/____/____   HORA: ____:____"), border=1)
+    pdf.cell(50, 6, clean_text(" Rubrica:"), border=1, ln=True)
     
+    # Espaço grande para observações manuais
+    pdf.cell(0, 60, clean_text(" OBSERVAÇÕES E DESCRIÇÃO DA OCORRÊNCIA:"), border=1, ln=True, align='T')
+
+    # --- RODAPÉ ---
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(0, 4, clean_text("Autarquia de Urbanização e Meio Ambiente de Caruaru - URB"), ln=True, align='C')
+    pdf.set_font("Arial", '', 7)
+    pdf.cell(0, 4, clean_text("Rua Visconde de Inhaúma, 1991. Bairro Maurício de Nassau"), ln=True, align='C')
+
     # Output seguro
     pdf_content = pdf.output(dest='S')
-    if isinstance(pdf_content, str):
-        return pdf_content.encode('latin-1')
-    return bytes(pdf_content)
+    return bytes(pdf_content) if not isinstance(pdf_content, str) else pdf_content.encode('latin-1')
 
 # ============================================================
 # FUNÇÕES DE BANCO DE DADOS (AGORA INTELIGENTES)
@@ -467,6 +478,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
