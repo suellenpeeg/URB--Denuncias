@@ -67,17 +67,9 @@ class SheetsClient:
                 return None, None
         return cls._gc, cls._spreadsheet_key
 
-# ============================================================
-# FUNÇÃO GERADORA DE PDF (CORRIGIDA E ROBUSTA)
-# ============================================================
-def clean_text(text):
-    if text is None: return ""
-    # Converte para string, remove caracteres incompatíveis com latin-1 (padrão FPDF)
-    text = str(text).replace("–", "-").replace("“", '"').replace("”", '"')
-    return text.encode('latin-1', 'replace').decode('latin-1')
-
 def gerar_pdf(dados):
     try:
+        # Classe customizada para o Cabeçalho
         class PDF(FPDF):
             def header(self):
                 self.set_font('Arial', 'B', 14)
@@ -91,131 +83,132 @@ def gerar_pdf(dados):
         pdf.add_page()
         pdf.set_line_width(0.3)
         
-        # Função auxiliar para células cinzas
         def celula_cinza(texto):
             pdf.set_fill_color(220, 220, 220)
             pdf.set_font("Arial", 'B', 9)
             pdf.cell(0, 6, clean_text(texto), 1, 1, 'L', fill=True)
 
-        # 1. Cabeçalho
-        celula_cinza(f"ORDEM DE SERVIÇO - SETOR {str(dados.get('tipo', '')).upper()}")
+        # 1. Cabeçalho da OS
+        tipo_os = str(dados.get('tipo', '')).upper()
+        celula_cinza(f"ORDEM DE SERVIÇO - SETOR {tipo_os}")
         
-        # Tratamento de Data seguro
+        # Tratamento de Data e Hora
         raw_date = str(dados.get('created_at', ''))
         data_fmt, hora_fmt = raw_date, ""
         try:
-            # Tenta converter se tiver formato de data e hora
-            if len(raw_date) > 10:
+            if len(raw_date) >= 10:
                 dt_obj = pd.to_datetime(raw_date)
                 data_fmt = dt_obj.strftime('%d/%m/%Y')
                 hora_fmt = dt_obj.strftime('%H:%M')
         except:
-            pass # Se falhar, mantem o texto original
+            pass
 
-        # Linha de Dados (Nº, Data, Hora...)
-        pdf.set_font("Arial", 'B', 9)
-        pdf.cell(10, 8, "Nº", 1, 0, 'C')
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(30, 8, clean_text(dados.get('external_id', '')), 1, 0, 'C')
-        
-        pdf.set_font("Arial", 'B', 9)
-        pdf.cell(15, 8, "DATA:", 1, 0, 'C')
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(25, 8, clean_text(data_fmt), 1, 0, 'C')
-
-        pdf.set_font("Arial", 'B', 9)
-        pdf.cell(15, 8, "HORA:", 1, 0, 'C')
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(20, 8, clean_text(hora_fmt), 1, 0, 'C')
-
-        pdf.set_font("Arial", 'B', 9)
-        pdf.cell(20, 8, "ORIGEM:", 1, 0, 'L')
+        # Linha 1: Nº, DATA, HORA, ORIGEM
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(8, 8, "Nº", 1, 0, 'C')
         pdf.set_font("Arial", '', 9)
-        # Largura restante calculada (A4 width ~210 - margins)
+        pdf.cell(25, 8, clean_text(dados.get('external_id', '')), 1, 0, 'C')
+        
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(12, 8, "DATA:", 1, 0, 'C')
+        pdf.set_font("Arial", '', 9)
+        pdf.cell(22, 8, data_fmt, 1, 0, 'C')
+
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(12, 8, "HORA:", 1, 0, 'C')
+        pdf.set_font("Arial", '', 9)
+        pdf.cell(15, 8, hora_fmt, 1, 0, 'C')
+
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(18, 8, "ORIGEM:", 1, 0, 'L')
+        pdf.set_font("Arial", '', 8)
         pdf.cell(0, 8, clean_text(dados.get('origem', '')), 1, 1, 'L')
 
-        # 2. Bairro e Zona
-        pdf.set_font("Arial", 'B', 9)
-        pdf.cell(40, 8, "BAIRRO OU DISTRITO:", 1, 0, 'L')
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(110, 8, clean_text(dados.get('bairro', '')), 1, 0, 'L')
+        # Linha 2: Bairro e Zona (TGS)
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(35, 8, "BAIRRO OU DISTRITO:", 1, 0, 'L')
+        pdf.set_font("Arial", '', 9)
+        pdf.cell(120, 8, clean_text(dados.get('bairro', '')), 1, 0, 'L')
         
-        pdf.set_font("Arial", 'B', 9)
+        pdf.set_font("Arial", 'B', 8)
         pdf.cell(10, 8, "TGS:", 1, 0, 'C')
-        pdf.set_font("Arial", '', 10)
+        pdf.set_font("Arial", '', 9)
         pdf.cell(0, 8, clean_text(dados.get('zona', '')), 1, 1, 'C')
 
-        # 3. Descrição
+        # 2. Descrição
         celula_cinza("DESCRIÇÃO DA ORDEM DE SERVIÇO")
-        pdf.set_font("Arial", '', 10)
-        pdf.multi_cell(0, 6, clean_text(dados.get('descricao', '')), 1, 'L')
+        pdf.set_font("Arial", '', 9)
+        pdf.multi_cell(0, 5, clean_text(dados.get('descricao', '')), 1, 'L')
 
-        # 4. Local
+        # 3. Local e Geolocalização
         celula_cinza("LOCAL DA OCORRÊNCIA")
-        
-        # Logradouro (Correção da borda: "LB" em vez de "L,B")
-        pdf.set_font("Arial", 'B', 9)
-        pdf.cell(30, 8, "LOGRADOURO:", "LB", 0, 'L') 
-        pdf.set_font("Arial", '', 10)
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(30, 8, "LOGRADOURO:", "LB", 0, 'L')
+        pdf.set_font("Arial", '', 9)
         pdf.cell(0, 8, clean_text(dados.get('rua', '')), "RB", 1, 'L')
         
-        # Número
-        pdf.set_font("Arial", 'B', 9)
+        pdf.set_font("Arial", 'B', 8)
         pdf.cell(30, 8, "Nº:", "LB", 0, 'L')
-        pdf.set_font("Arial", '', 10)
+        pdf.set_font("Arial", '', 9)
         pdf.cell(0, 8, clean_text(dados.get('numero', '')), "RB", 1, 'L')
 
-        # Ponto de Referência
-        pdf.set_font("Arial", 'B', 9)
-        pdf.cell(40, 8, clean_text("PONTO DE REFERÊNCIA:"), 1, 0, 'L')
-        pdf.set_font("Arial", '', 10)
+        # Campo Geolocalização (conforme imagem enviada)
+        lat = str(dados.get('latitude', ''))
+        lon = str(dados.get('longitude', ''))
+        geo_texto = f"{lat}  {lon}" if lat or lon else ""
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(30, 8, "GEOLOCALIZAÇÃO:", 1, 0, 'L')
+        pdf.set_font("Arial", '', 8)
+        pdf.cell(0, 8, geo_texto, 1, 1, 'L')
+
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(35, 8, "PONTO DE REFERÊNCIA:", 1, 0, 'L')
         pdf.cell(0, 8, "", 1, 1, 'L')
 
-        pdf.ln(5)
-
-        # 5. Assinaturas
+        # 4. Assinatura
+        pdf.ln(2)
         y_sig = pdf.get_y()
-        # Verificar se cabe na página, senão quebra página
-        if y_sig > 250: 
-            pdf.add_page()
-            y_sig = pdf.get_y()
-
-        pdf.rect(10, y_sig, 140, 20) # Caixa Nome
-        pdf.rect(150, y_sig, 50, 20) # Caixa Rubrica
+        pdf.rect(10, y_sig, 130, 18) # Caixa Nome
+        pdf.rect(140, y_sig, 60, 18) # Caixa Rubrica
+        
+        # Cabeçalho da Rubrica azulzinho igual à imagem
+        pdf.set_fill_color(200, 220, 255)
+        pdf.set_xy(140, y_sig)
+        pdf.set_font("Arial", '', 7)
+        pdf.cell(60, 4, "Rubrica", 1, 0, 'C', fill=True)
 
         pdf.set_xy(12, y_sig + 2)
-        pdf.set_font("Arial", 'B', 8)
-        pdf.cell(0, 5, "RECEBIDO POR:", 0, 1)
-        
-        pdf.set_font("Arial", '', 11)
-        pdf.set_xy(12, y_sig + 8)
-        pdf.cell(135, 8, clean_text(dados.get('quem_recebeu', '')), 0, 0, 'C')
+        pdf.set_font("Arial", 'B', 7)
+        pdf.cell(0, 4, "RECEBIDO POR:", 0, 1)
+        pdf.set_font("Arial", '', 9)
+        pdf.set_x(12)
+        pdf.cell(125, 8, clean_text(dados.get('quem_recebeu', '')), 0, 0, 'L')
 
-        pdf.set_xy(150, y_sig + 2)
-        pdf.set_font("Arial", 'B', 8)
-        pdf.cell(50, 5, "Rubrica", 0, 0, 'C')
-
-        pdf.set_xy(10, y_sig + 25)
-
-        # 6. Fiscalização
+        # 5. Informações da Fiscalização
+        pdf.set_xy(10, y_sig + 22)
         celula_cinza("INFORMAÇÕES DA FISCALIZAÇÃO")
         
-        pdf.set_font("Arial", 'B', 9)
-        pdf.cell(95, 8, "DATA DA VISTORIA: _____/_____/_______", 1, 0, 'L')
+        # Linha Rubrica da Fiscalização
+        y_fisc = pdf.get_y()
+        pdf.set_fill_color(200, 220, 255)
+        pdf.set_xy(140, y_fisc - 6) # Sobe para alinhar com o título cinza
+        pdf.cell(60, 6, "Rubrica", 1, 1, 'C', fill=True)
+        
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(90, 8, "DATA DA VISTORIA: _____/_____/_______", 1, 0, 'L')
         pdf.cell(0, 8, "HORA: _____:_____", 1, 1, 'L')
 
-        y_obs = pdf.get_y()
-        pdf.rect(10, y_obs, 190, 50)
-        
-        pdf.set_xy(12, y_obs + 1)
-        pdf.set_font("Arial", '', 8)
-        pdf.cell(0, 5, clean_text("OBSERVAÇÕES (CAMPO RESERVADO AO FISCAL)"), 0, 1)
+        pdf.set_font("Arial", '', 7)
+        pdf.cell(0, 5, "OBSERVAÇÕES E DESCRIÇÃO DA OCORRÊNCIA", "LR", 1, 'C')
+        pdf.cell(0, 45, "", "LRB", 1, 'L')
 
-        # Retorno
-        return bytes(pdf.output(dest='S').encode('latin-1'))
-    
+        # --- CORREÇÃO DO ERRO 'BYTEARRAY' ---
+        pdf_output = pdf.output(dest='S')
+        if isinstance(pdf_output, str):
+            return pdf_output.encode('latin-1')
+        return bytes(pdf_output)
+
     except Exception as e:
-        # Retorna o erro como string para podermos ver na tela
         return str(e)
 
 # ============================================================
@@ -495,6 +488,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
