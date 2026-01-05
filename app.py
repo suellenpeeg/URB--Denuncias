@@ -1,4 +1,4 @@
-vimport streamlit as st
+import streamlit as st
 import pandas as pd
 import hashlib
 from datetime import datetime
@@ -400,4 +400,5 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
