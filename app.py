@@ -22,10 +22,10 @@ SHEET_REINCIDENCIAS = "reincidencias"
 SHEET_USUARIOS = "usuarios"
 
 # Listas
-OPCOES_STATUS = ['Pendente', 'Em Andamento', 'Concluída', 'Arquivada']
+OPCOES_STATUS = ['Pendente', 'Em Monitoramento', 'Concluída', 'Arquivada']
 OPCOES_ORIGEM = ['Pessoalmente', 'Telefone', 'Whatsapp', 'Ministério Publico', 'Administração', 'Ouvidoria', 'Disk Denuncia']
-OPCOES_TIPO = ['Urbana', 'Ambiental', 'Urbana e Ambiental']
-OPCOES_ZONA = ['NORTE', 'SUL', 'LESTE', 'OESTE', 'CENTRO']
+OPCOES_TIPO = ['Urbano', 'Ambiental', 'Urbana e Ambiental', 'AÇÃO NOTURNA']
+OPCOES_ZONA = ['NORTE', 'SUL', 'LESTE', 'OESTE', 'CENTRO', 'ZONA RURAL', '1° DISTRITO', '2° DISTRITO', 'DISTRITO INDUSTRIAL']
 OPCOES_FISCAIS_SELECT = ['Edvaldo Wilson Bezerra da Silva - 000.323', 'PATRICIA MIRELLY BEZERRA CAMPOS - 000.332', 'Raiany Nayara de Lima - 000.362', 'Suellen Bezerra do Nascimeto - 000.417']
 
 # SCHEMAS
@@ -564,6 +564,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
