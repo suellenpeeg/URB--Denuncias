@@ -71,49 +71,68 @@ class SheetsClient:
 # ============================================================
 # FUNÇÃO GERADORA DE PDF (CORRIGIDA VISUALMENTE)
 # ============================================================
-import unicodedata
-
 def clean_text(text):
-    """Remove acentos e caracteres não-latin-1 para evitar quebra do PDF"""
     if text is None: return ""
-    # Converte para string e remove acentos
-    text = str(text)
-    nfkd_form = unicodedata.normalize('NFKD', text)
-    only_ascii = nfkd_form.encode('ASCII', 'ignore').decode('ASCII')
-    return only_ascii
+    return str(text).encode('latin-1', 'replace').decode('latin-1')
 
 def gerar_pdf(dados):
-    try:
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 12)
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # --- TRATAMENTO DE ERROS DE DADOS ANTIGOS ---
+    status_display = str(dados.get('status', ''))
+    fiscal_display = str(dados.get('quem_recebeu', ''))
+    
+    # Se o status estiver como FALSE (erro de coluna), força Pendente
+    if status_display.upper() == 'FALSE':
+        status_display = "Pendente"
         
-        # Título
-        pdf.cell(0, 10, clean_text("Autarquia de Urbanizacao e Meio Ambiente de Caruaru"), ln=True, align='C')
-        pdf.ln(5)
-        
-        # Corpo do PDF (Simplificado para teste de estabilidade)
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(0, 8, " DADOS DA ORDEM DE SERVICO", border=1, ln=True, fill=False)
-        
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(0, 8, f" OS: {clean_text(dados.get('external_id', ''))}", border=1, ln=True)
-        pdf.cell(0, 8, f" DATA: {clean_text(dados.get('created_at', ''))}", border=1, ln=True)
-        pdf.cell(0, 8, f" BAIRRO: {clean_text(dados.get('bairro', ''))}", border=1, ln=True)
-        
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(0, 8, " DESCRICAO:", border=1, ln=True)
-        pdf.set_font("Arial", '', 10)
-        pdf.multi_cell(0, 8, clean_text(dados.get('descricao', '')), border=1)
+    # Se o fiscal estiver como Pendente (coluna trocada), tenta limpar
+    if fiscal_display in OPCOES_STATUS: 
+        fiscal_display = "Nao Informado (Erro Cadastro)"
 
-        # Retorno seguro em bytes
-        pdf_out = pdf.output(dest='S')
-        if isinstance(pdf_out, str):
-            return pdf_out.encode('latin-1', errors='ignore')
-        return pdf_out
-    except Exception as e:
-        print(f"Erro FPDF: {e}")
-        return None
+    # Cabeçalho
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, clean_text(f"ORDEM DE SERVICO - {dados['external_id']}"), ln=True, align='C')
+    pdf.line(10, 20, 200, 20)
+    pdf.ln(10)
+    
+    # Dados
+    pdf.set_font("Arial", size=12)
+    campos = [
+        ("Data Abertura", dados.get('created_at', '')),
+        ("Status Atual", status_display),  # Usa a variável corrigida
+        ("Tipo", dados.get('tipo', '')),
+        ("Origem", dados.get('origem', '')),
+        ("Fiscal Responsavel", fiscal_display), # Usa a variável corrigida
+        ("Endereco", f"{dados.get('rua','')} , {dados.get('numero','')} - {dados.get('bairro','')}"),
+        ("Zona", dados.get('zona', '')),
+    ]
+    for titulo, valor in campos:
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(50, 10, clean_text(f"{titulo}:"), border=0)
+        pdf.set_font("Arial", '', 12)
+        pdf.cell(0, 10, clean_text(valor), ln=True)
+        
+    pdf.ln(5)
+    
+    # Descrição
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, clean_text("Relato / Historico:"), ln=True)
+    pdf.set_font("Arial", '', 12)
+    pdf.multi_cell(0, 7, clean_text(dados.get('descricao', '')))
+    
+    pdf.ln(20)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.cell(0, 10, clean_text("Assinatura do Responsavel"), align='R')
+    
+    # Output seguro
+    pdf_content = pdf.output(dest='S')
+    if isinstance(pdf_content, str):
+        return pdf_content.encode('latin-1')
+    return bytes(pdf_content)
+
+
 # ============================================================
 # FUNÇÕES DE BANCO DE DADOS (AGORA INTELIGENTES)
 # ============================================================
@@ -393,22 +412,11 @@ elif page == "Histórico / Editar":
             cols[2].markdown(f":{clr}[**{st_dsp}**]")
             
             # PDF
-            pdf_bytes = None
             try:
                 pdf_bytes = gerar_pdf(row)
-            except:
-                pdf_bytes = None
-
-            if pdf_bytes is not None:
-                cols[3].download_button(
-                    label="📄", 
-                    data=pdf_bytes, 
-                    file_name=f"OS_{str(row.get('external_id','')).replace('/','-')}.pdf", 
-                    mime="application/pdf", 
-                    key=f"pdf_{row['id']}"
-                )
-            else:
-                cols[3].write("⚠️") # Mostra um ícone de aviso se o PDF falhar, mas não trava a tela
+                cols[3].download_button("📄", pdf_bytes, f"OS_{row.get('external_id','').replace('/','-')}.pdf", "application/pdf", key=f"pdf_{row['id']}")
+            except Exception as e:
+                cols[3].error("Erro")
             
             if cols[4].button("✏️", key=f"btn_{row['id']}"):
                 st.session_state.edit_id = row['id']
@@ -461,6 +469,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
