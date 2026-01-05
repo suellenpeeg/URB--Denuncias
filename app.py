@@ -68,56 +68,150 @@ class SheetsClient:
         return cls._gc, cls._spreadsheet_key
 
 # ============================================================
-# FUNÇÃO GERADORA DE PDF
+# NOVA FUNÇÃO GERADORA DE PDF (ESTILO FORMULÁRIO)
 # ============================================================
-def clean_text(text):
-    if text is None: return ""
-    return str(text).encode('latin-1', 'replace').decode('latin-1')
-
 def gerar_pdf(dados):
-    pdf = FPDF()
+    class PDF(FPDF):
+        def header(self):
+            # Título Centralizado (Sem logo, conforme pedido)
+            self.set_font('Arial', 'B', 14)
+            self.cell(0, 6, clean_text("Autarquia de Urbanização e Meio Ambiente de Caruaru"), 0, 1, 'C')
+            self.set_font('Arial', 'B', 12)
+            self.cell(0, 6, clean_text("Central de Atendimento"), 0, 1, 'C')
+            self.ln(5)
+
+    pdf = PDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
-    status_display = str(dados.get('status', ''))
-    fiscal_display = str(dados.get('quem_recebeu', ''))
+    # --- Configurações de Formatação ---
+    pdf.set_line_width(0.3)
     
-    if status_display.upper() == 'FALSE':
-        status_display = "Pendente"
-        
-    if fiscal_display in OPCOES_STATUS: 
-        fiscal_display = "Nao Informado (Erro Cadastro)"
+    def celula_cinza(texto):
+        pdf.set_fill_color(220, 220, 220) # Cinza claro
+        pdf.set_font("Arial", 'B', 9)
+        pdf.cell(0, 6, clean_text(texto), 1, 1, 'L', fill=True)
 
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, clean_text(f"ORDEM DE SERVICO - {dados.get('external_id','')}"), ln=True, align='C')
-    pdf.line(10, 20, 200, 20)
-    pdf.ln(10)
+    # 1. Cabeçalho da OS
+    celula_cinza(f"ORDEM DE SERVIÇO - SETOR {str(dados.get('tipo', '')).upper()}")
     
-    pdf.set_font("Arial", size=12)
-    campos = [
-        ("Data Abertura", dados.get('created_at', '')),
-        ("Status Atual", status_display),
-        ("Tipo", dados.get('tipo', '')),
-        ("Origem", dados.get('origem', '')),
-        ("Fiscal Responsavel", fiscal_display),
-        ("Endereco", f"{dados.get('rua','')} , {dados.get('numero','')} - {dados.get('bairro','')}"),
-        ("Zona", dados.get('zona', '')),
-    ]
-    for titulo, valor in campos:
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(50, 10, clean_text(f"{titulo}:"), border=0)
-        pdf.set_font("Arial", '', 12)
-        pdf.cell(0, 10, clean_text(valor), ln=True)
-        
-    pdf.ln(5)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, clean_text("Relato / Historico:"), ln=True)
-    pdf.set_font("Arial", '', 12)
-    pdf.multi_cell(0, 7, clean_text(dados.get('descricao', '')))
+    # Linha de metadados: Nº, Data, Hora, Origem
+    pdf.set_font("Arial", 'B', 9)
     
-    pdf.ln(20)
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.cell(0, 10, clean_text("Assinatura do Responsavel"), align='R')
+    # Tratamento de Data/Hora
+    try:
+        dt_obj = datetime.strptime(dados.get('created_at', ''), '%Y-%m-%d %H:%M:%S')
+        data_fmt = dt_obj.strftime('%d/%m/%Y')
+        hora_fmt = dt_obj.strftime('%H:%M')
+    except:
+        data_fmt = dados.get('created_at', '')
+        hora_fmt = ""
+
+    # Desenhando a linha de dados (Tabela manual para ajuste fino)
+    y_start = pdf.get_y()
     
+    # Coluna Nº
+    pdf.cell(10, 8, "Nº", 1, 0, 'C')
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(30, 8, str(dados.get('external_id', '')), 1, 0, 'C')
+    
+    # Coluna Data
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(15, 8, "DATA:", 1, 0, 'C')
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(25, 8, data_fmt, 1, 0, 'C')
+
+    # Coluna Hora
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(15, 8, "HORA:", 1, 0, 'C')
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(20, 8, hora_fmt, 1, 0, 'C')
+
+    # Coluna Origem
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(20, 8, "ORIGEM:", 1, 0, 'L')
+    pdf.set_font("Arial", '', 9)
+    # Calcula largura restante
+    largura_restante = 190 - (10+30+15+25+15+20+20) 
+    pdf.cell(0, 8, clean_text(dados.get('origem', '')), 1, 1, 'L')
+
+    # 2. Linha Bairro e Zona
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(40, 8, "BAIRRO OU DISTRITO:", 1, 0, 'L')
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(110, 8, clean_text(dados.get('bairro', '')), 1, 0, 'L')
+    
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(10, 8, "TGS:", 1, 0, 'C') # TGS refere-se à Zona/Setor
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(0, 8, clean_text(dados.get('zona', '')), 1, 1, 'C')
+
+    # 3. Descrição
+    celula_cinza("DESCRIÇÃO DA ORDEM DE SERVIÇO")
+    pdf.set_font("Arial", '', 10)
+    # MultiCell para texto longo com quebra de linha
+    pdf.multi_cell(0, 6, clean_text(dados.get('descricao', '')), 1, 'L')
+
+    # 4. Local da Ocorrência
+    celula_cinza("LOCAL DA OCORRÊNCIA")
+    
+    # Logradouro
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(30, 8, "LOGRADOURO:", "L,B", 0, 'L') # Bordas Esquerda e Baixo apenas
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(0, 8, clean_text(dados.get('rua', '')), "R,B", 1, 'L') # Bordas Direita e Baixo
+    
+    # Número
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(30, 8, "Nº:", "L,B", 0, 'L')
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(0, 8, clean_text(dados.get('numero', '')), "R,B", 1, 'L')
+
+    # Ponto de Referência / Obs (Campo Vazio para anotação ou dados extras)
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(40, 8, clean_text("PONTO DE REFERÊNCIA:"), 1, 0, 'L')
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(0, 8, "", 1, 1, 'L')
+
+    pdf.ln(3)
+
+    # 5. Área de Assinatura (Quem Recebeu)
+    # Caixa para o Fiscal
+    y_sig = pdf.get_y()
+    pdf.rect(10, y_sig, 140, 20) # Caixa Nome
+    pdf.rect(150, y_sig, 50, 20) # Caixa Rubrica
+
+    pdf.set_xy(12, y_sig + 2)
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(0, 5, "RECEBIDO POR:", 0, 1)
+    
+    pdf.set_font("Arial", '', 11)
+    pdf.set_xy(12, y_sig + 8)
+    pdf.cell(135, 8, clean_text(dados.get('quem_recebeu', '')), 0, 0, 'C')
+
+    pdf.set_xy(150, y_sig + 2)
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(50, 5, "Rubrica", 0, 0, 'C')
+
+    pdf.set_xy(10, y_sig + 25)
+
+    # 6. Informações da Fiscalização (Para preenchimento manual em campo)
+    celula_cinza("INFORMAÇÕES DA FISCALIZAÇÃO")
+    
+    # Linha de Data/Hora Manual
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(95, 8, "DATA DA VISTORIA: _____/_____/_______", 1, 0, 'L')
+    pdf.cell(0, 8, "HORA: _____:_____", 1, 1, 'L')
+
+    # Caixa Grande de Observações
+    y_obs = pdf.get_y()
+    pdf.rect(10, y_obs, 190, 50)
+    
+    pdf.set_xy(12, y_obs + 1)
+    pdf.set_font("Arial", '', 8)
+    pdf.cell(0, 5, clean_text("OBSERVAÇÕES E DESCRIÇÃO DA OCORRÊNCIA (CAMPO RESERVADO AO FISCAL)"), 0, 1)
+
+    # Output
     pdf_content = pdf.output(dest='S')
     if isinstance(pdf_content, str):
         return pdf_content.encode('latin-1')
@@ -482,6 +576,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
