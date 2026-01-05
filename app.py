@@ -67,6 +67,17 @@ class SheetsClient:
                 return None, None
         return cls._gc, cls._spreadsheet_key
 
+# ============================================================
+# FUNÇÃO DE SUPORTE (DEVE VIR ANTES DE GERAR_PDF)
+# ============================================================
+def clean_text(text):
+    """Limpa o texto para evitar erros de codificação no PDF."""
+    if text is None: 
+        return ""
+    # Converte para string e remove caracteres que o Latin-1 não suporta
+    text = str(text).replace("–", "-").replace("“", '"').replace("”", '"').replace("’", "'")
+    return text.encode('latin-1', 'replace').decode('latin-1')
+
 def gerar_pdf(dados):
     try:
         # Classe customizada para o Cabeçalho
@@ -488,6 +499,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
