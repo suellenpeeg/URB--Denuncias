@@ -311,19 +311,71 @@ elif page == "Registrar Denúncia":
                 st.rerun()
 
 # ============================================================
-# PÁGINA 3: HISTÓRICO
+# PÁGINA 3: HISTÓRICO (COM FILTROS E EXCLUSÃO)
 # ============================================================
 elif page == "Histórico / Editar":
-    st.title("🗂️ Gerenciar")
+    st.title("🗂️ Gerenciar Denúncias")
+    
+    # 1. Carregar dados
     df = load_data(SHEET_DENUNCIAS)
     
     if df.empty:
-        st.warning("Vazio.")
+        st.warning("Nenhuma denúncia registrada.")
         st.stop()
 
+    # --------------------------------------------------------
+    # ÁREA DE FILTROS
+    # --------------------------------------------------------
+    st.markdown("### 🔍 Filtros de Pesquisa")
+    
+    # Garantir que as colunas existem para não dar erro no filtro
+    if 'bairro' not in df.columns: df['bairro'] = ''
+    if 'zona' not in df.columns: df['zona'] = ''
+    if 'status' not in df.columns: df['status'] = ''
+
+    c_filtro1, c_filtro2, c_filtro3, c_filtro4 = st.columns(4)
+    
+    with c_filtro1:
+        filtro_texto = st.text_input("Buscar (ID ou Rua)", placeholder="Ex: 0001 ou Rua das Flores")
+    with c_filtro2:
+        lista_bairros = sorted(list(set(df['bairro'].astype(str))))
+        filtro_bairro = st.multiselect("Filtrar por Bairro", options=lista_bairros)
+    with c_filtro3:
+        filtro_zona = st.multiselect("Filtrar por Zona", options=OPCOES_ZONA)
+    with c_filtro4:
+        filtro_status = st.multiselect("Filtrar por Status", options=OPCOES_STATUS)
+
+    st.markdown("---")
+
+    # Lógica de Filtragem
+    df_display = df.copy()
+
+    if filtro_texto:
+        term = filtro_texto.lower()
+        # Filtra se o termo está no ID externo OU na Rua
+        df_display = df_display[
+            df_display['external_id'].astype(str).str.lower().str.contains(term) | 
+            df_display['rua'].astype(str).str.lower().str.contains(term)
+        ]
+    
+    if filtro_bairro:
+        df_display = df_display[df_display['bairro'].isin(filtro_bairro)]
+        
+    if filtro_zona:
+        df_display = df_display[df_display['zona'].isin(filtro_zona)]
+        
+    if filtro_status:
+        # Tratamento para status FALSE ou string vazia
+        mask_status = df_display['status'].apply(lambda x: 'Pendente' if str(x).upper() == 'FALSE' else x)
+        df_display = df_display[mask_status.isin(filtro_status)]
+
+    st.caption(f"Exibindo {len(df_display)} registros de {len(df)} totais.")
+
+    # --------------------------------------------------------
+    # LÓGICA DE EDIÇÃO (Formulário aparece se clicou no lápis)
+    # --------------------------------------------------------
     if 'edit_id' in st.session_state:
-        st.markdown("---")
-        st.info(f"✏️ Editando: {st.session_state.edit_id}")
+        st.info(f"✏️ Editando registro ID: {st.session_state.edit_id}")
         row_idx_list = df.index[df['id'] == st.session_state.edit_id].tolist()
         
         if row_idx_list:
@@ -333,40 +385,70 @@ elif page == "Histórico / Editar":
                 curr_st = row_data.get('status', 'Pendente')
                 if str(curr_st).upper() == 'FALSE': curr_st = 'Pendente'
                 idx_st = OPCOES_STATUS.index(curr_st) if curr_st in OPCOES_STATUS else 0
-                nst = st.selectbox("Status", OPCOES_STATUS, index=idx_st)
-                ndesc = st.text_area("Descrição", value=row_data.get('descricao', ''), height=150)
-                if st.form_submit_button("✅ Salvar"):
+                
+                c_edit1, c_edit2 = st.columns([1, 3])
+                nst = c_edit1.selectbox("Novo Status", OPCOES_STATUS, index=idx_st)
+                ndesc = c_edit2.text_area("Atualizar Relato/Descrição", value=row_data.get('descricao', ''), height=100)
+                
+                if st.form_submit_button("✅ Salvar Alterações"):
                     df.at[idx, 'status'] = nst
                     df.at[idx, 'descricao'] = ndesc
                     update_full_sheet(SHEET_DENUNCIAS, df)
-                    st.success("Salvo!")
+                    st.success("Atualizado com sucesso!")
                     del st.session_state.edit_id
                     time.sleep(1)
                     st.rerun()
-            if st.button("Cancelar"):
+            
+            if st.button("Cancelar Edição"):
                 del st.session_state.edit_id
                 st.rerun()
         st.markdown("---")
 
-    df_display = df.sort_values(by='id', ascending=False)
+    # --------------------------------------------------------
+    # LISTAGEM DOS CARDS
+    # --------------------------------------------------------
+    # Ordenar do mais recente para o mais antigo
+    df_display = df_display.sort_values(by='id', ascending=False)
+
     for idx, row in df_display.iterrows():
         with st.container(border=True):
-            cols = st.columns([1, 3, 1.2, 0.6, 0.6])
+            # Ajustei as colunas para caber o botão de excluir (6 colunas agora)
+            cols = st.columns([1, 3, 1.2, 0.5, 0.5, 0.5])
+            
+            # Col 1: ID e Data
             cols[0].markdown(f"**{row.get('external_id','')}**")
             cols[0].caption(row.get('created_at',''))
+            
+            # Col 2: Endereço e Descrição curta
             cols[1].write(f"📍 {row.get('rua','')} - {row.get('bairro','')}")
-            cols[1].caption(f"{row.get('tipo','')} | {str(row.get('descricao',''))[:50]}...")
+            desc_curta = str(row.get('descricao',''))[:60] + "..." if len(str(row.get('descricao',''))) > 60 else str(row.get('descricao',''))
+            cols[1].caption(f"{row.get('tipo','')} | {desc_curta}")
+            
+            # Col 3: Status Colorido
             st_val = str(row.get('status',''))
-            st_dsp = "Pendente" if st_val.upper() == 'FALSE' else st_val
+            st_dsp = "Pendente" if st_val.upper() == 'FALSE' or st_val == '' else st_val
             clr = "orange" if st_dsp == "Pendente" else "green" if st_dsp == "Concluída" else "blue"
             cols[2].markdown(f":{clr}[**{st_dsp}**]")
+            
+            # Col 4: Botão PDF
             try:
                 pdf_bytes = gerar_pdf(row)
                 cols[3].download_button("📄", pdf_bytes, f"OS_{row.get('external_id','').replace('/','-')}.pdf", "application/pdf", key=f"pdf_{row['id']}")
             except:
-                cols[3].error("Erro")
-            if cols[4].button("✏️", key=f"btn_{row['id']}"):
+                cols[3].error("Erro PDF")
+            
+            # Col 5: Botão Editar
+            if cols[4].button("✏️", key=f"edt_{row['id']}", help="Editar Status/Descrição"):
                 st.session_state.edit_id = row['id']
+                st.rerun()
+
+            # Col 6: Botão Excluir
+            if cols[5].button("🗑️", key=f"del_{row['id']}", help="Excluir Permanentemente"):
+                # Remove a linha onde o ID é igual ao ID do botão clicado
+                df_novo = df[df['id'] != row['id']]
+                update_full_sheet(SHEET_DENUNCIAS, df_novo)
+                st.toast(f"Denúncia {row.get('external_id')} excluída!", icon="🗑️")
+                time.sleep(1)
                 st.rerun()
 
 # ============================================================
@@ -400,5 +482,6 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
