@@ -71,88 +71,48 @@ class SheetsClient:
 # ============================================================
 # FUNÇÃO GERADORA DE PDF (CORRIGIDA VISUALMENTE)
 # ============================================================
+import unicodedata
+
 def clean_text(text):
-    """Limpa o texto para o formato que o FPDF clássico aceita (latin-1)"""
+    """Remove acentos e caracteres não-latin-1 para evitar quebra do PDF"""
     if text is None: return ""
-    # Converte para string, remove emojis/caracteres especiais e garante latin-1
-    return str(text).encode('ascii', 'ignore').decode('ascii')
+    # Converte para string e remove acentos
+    text = str(text)
+    nfkd_form = unicodedata.normalize('NFKD', text)
+    only_ascii = nfkd_form.encode('ASCII', 'ignore').decode('ASCII')
+    return only_ascii
 
 def gerar_pdf(dados):
     try:
-        # 1. Configuração do PDF
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", 'B', 12)
         
-        # Cores Estilo URB (Cinza e Preto)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.set_draw_color(0, 0, 0)
-
-        # --- CABEÇALHO ---
-        pdf.cell(0, 8, "Autarquia de Urbanizacao e Meio Ambiente de Caruaru", ln=True, align='C')
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 8, "Central de Atendimento", ln=True, align='C')
-        pdf.ln(4)
-
-        # --- TABELA DE DADOS ---
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(0, 8, " ORDEM DE SERVICO - SETOR URBANO", border=1, ln=True, fill=True)
+        # Título
+        pdf.cell(0, 10, clean_text("Autarquia de Urbanizacao e Meio Ambiente de Caruaru"), ln=True, align='C')
+        pdf.ln(5)
         
-        pdf.set_font("Arial", 'B', 9)
-        # Linha: ID, DATA, HORA
-        id_os = str(dados.get('external_id', ''))
-        data_os = str(dados.get('created_at', ''))[:10]
-        hora_os = str(dados.get('created_at', ''))[11:16]
+        # Corpo do PDF (Simplificado para teste de estabilidade)
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(0, 8, " DADOS DA ORDEM DE SERVICO", border=1, ln=True, fill=False)
         
-        pdf.cell(60, 8, f" No: {id_os}", border=1)
-        pdf.cell(60, 8, f" DATA: {data_os}", border=1)
-        pdf.cell(70, 8, f" HORA: {hora_os}", border=1, ln=True)
-
-        # Linha: Origem
-        origem = str(dados.get('origem', '')).upper()
-        pdf.cell(0, 8, f" ORIGEM: {origem}", border=1, ln=True)
-
-        # Linha: Bairro e Zona
-        bairro = str(dados.get('bairro', '')).upper()
-        zona = str(dados.get('zona', '')).upper()
-        pdf.cell(130, 8, f" BAIRRO OU DISTRITO: {bairro}", border=1)
-        pdf.cell(60, 8, f" ZONA: {zona}", border=1, ln=True)
-
-        # --- DESCRIÇÃO ---
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(0, 8, " DESCRICAO DA ORDEM DE SERVICO", border=1, ln=True, fill=True)
-        pdf.set_font("Arial", '', 9)
-        desc = clean_text(dados.get('descricao', ''))
-        pdf.multi_cell(0, 6, desc, border=1)
-
-        # --- LOCAL ---
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(0, 8, " LOCAL DA OCORRENCIA", border=1, ln=True, fill=True)
-        pdf.set_font("Arial", 'B', 9)
-        rua = str(dados.get('rua', ''))
-        num = str(dados.get('numero', ''))
-        pdf.cell(140, 8, f" LOGRADOURO: {rua} (No: {num})", border=1)
-        pdf.cell(50, 8, " CARUARU-PE", border=1, ln=True)
-
-        # --- FISCALIZAÇÃO ---
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(0, 8, " INFORMACOES DA FISCALIZACAO", border=1, ln=True, fill=True)
-        pdf.set_font("Arial", 'B', 9)
-        pdf.cell(140, 10, f" RECEBIDO POR: {dados.get('quem_recebeu', '')}", border=1)
-        pdf.cell(50, 10, " Rubrica:", border=1, ln=True)
+        pdf.set_font("Arial", '', 10)
+        pdf.cell(0, 8, f" OS: {clean_text(dados.get('external_id', ''))}", border=1, ln=True)
+        pdf.cell(0, 8, f" DATA: {clean_text(dados.get('created_at', ''))}", border=1, ln=True)
+        pdf.cell(0, 8, f" BAIRRO: {clean_text(dados.get('bairro', ''))}", border=1, ln=True)
         
-        # Espaço para anotações manuais
-        pdf.cell(0, 8, " OBSERVACOES:", border='LTR', ln=True)
-        pdf.cell(0, 40, "", border='LBR', ln=True)
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(0, 8, " DESCRICAO:", border=1, ln=True)
+        pdf.set_font("Arial", '', 10)
+        pdf.multi_cell(0, 8, clean_text(dados.get('descricao', '')), border=1)
 
-        # 2. O SEGREDO: Retornar como Bytes via Buffer
-        # dest='S' retorna uma string no FPDF clássico, precisamos converter
-        pdf_str = pdf.output(dest='S')
-        return pdf_str.encode('latin-1')
-
+        # Retorno seguro em bytes
+        pdf_out = pdf.output(dest='S')
+        if isinstance(pdf_out, str):
+            return pdf_out.encode('latin-1', errors='ignore')
+        return pdf_out
     except Exception as e:
-        # Isso aparecerá no seu terminal se algo der errado
-        print(f"ERRO CRITICO NO PDF: {e}")
+        print(f"Erro FPDF: {e}")
         return None
 # ============================================================
 # FUNÇÕES DE BANCO DE DADOS (AGORA INTELIGENTES)
@@ -433,11 +393,22 @@ elif page == "Histórico / Editar":
             cols[2].markdown(f":{clr}[**{st_dsp}**]")
             
             # PDF
+            pdf_bytes = None
             try:
                 pdf_bytes = gerar_pdf(row)
-                cols[3].download_button("📄", pdf_bytes, f"OS_{row.get('external_id','').replace('/','-')}.pdf", "application/pdf", key=f"pdf_{row['id']}")
-            except Exception as e:
-                cols[3].error("Erro")
+            except:
+                pdf_bytes = None
+
+            if pdf_bytes is not None:
+                cols[3].download_button(
+                    label="📄", 
+                    data=pdf_bytes, 
+                    file_name=f"OS_{str(row.get('external_id','')).replace('/','-')}.pdf", 
+                    mime="application/pdf", 
+                    key=f"pdf_{row['id']}"
+                )
+            else:
+                cols[3].write("⚠️") # Mostra um ícone de aviso se o PDF falhar, mas não trava a tela
             
             if cols[4].button("✏️", key=f"btn_{row['id']}"):
                 st.session_state.edit_id = row['id']
@@ -490,6 +461,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
