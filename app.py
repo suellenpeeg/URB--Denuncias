@@ -182,10 +182,11 @@ def gerar_pdf(dados):
         celula_cinza("DESCRIÇÃO DA ORDEM DE SERVIÇO")
         pdf.set_font("Arial", '', 9)
         pdf.multi_cell(0, 5, clean_text(dados.get('descricao', '')), 1, 'L')
-
+        pdf.set_x(10)
+        
         # 3. Local e Geolocalização
         pdf.set_font("Arial", 'B', 8)
-        pdf.cell(30, 8, "LOGRADOURO:", "LB", 0, 'L')
+        pdf.cell(30, 8, "LOGRADOURO:", "LTB", 0, 'L')
         pdf.set_font("Arial", '', 9)
         pdf.cell(0, 8, clean_text(dados.get('rua', '')), "RB", 1, 'L')
         
@@ -598,6 +599,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
