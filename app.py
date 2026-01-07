@@ -101,7 +101,7 @@ def gerar_pdf(dados):
 
         # 1. Cabeçalho da OS
         tipo_os = str(dados.get('tipo', '')).upper()
-        celula_cinza(f"ORDEM DE SERVIÇO - SETOR {tipo_os}")
+        celula_cinza(f"ORDEM DE SERVIÇO - SETOR DE FISCALIZAÇÃO")
         
         # Tratamento de Data e Hora
         raw_date = str(dados.get('created_at', ''))
@@ -152,7 +152,7 @@ def gerar_pdf(dados):
         pdf.multi_cell(0, 5, clean_text(dados.get('descricao', '')), 1, 'L')
 
         # 3. Local e Geolocalização
-        celula_cinza("LOCAL DA OCORRÊNCIA")
+        celula_cinza("")
         pdf.set_font("Arial", 'B', 8)
         pdf.cell(30, 8, "LOGRADOURO:", "LB", 0, 'L')
         pdf.set_font("Arial", '', 9)
@@ -168,12 +168,12 @@ def gerar_pdf(dados):
         lon = str(dados.get('longitude', ''))
         geo_texto = f"{lat}  {lon}" if lat or lon else ""
         pdf.set_font("Arial", 'B', 8)
-        pdf.cell(30, 8, "GEOLOCALIZAÇÃO:", 1, 0, 'L')
+        pdf.cell(30, 8, "GEOLOCALIZAÇÃO: ", 1, 0, 'L')
         pdf.set_font("Arial", '', 8)
         pdf.cell(0, 8, geo_texto, 1, 1, 'L')
 
         pdf.set_font("Arial", 'B', 8)
-        pdf.cell(35, 8, "PONTO DE REFERÊNCIA:", 1, 0, 'L')
+        pdf.cell(35, 8, "PONTO DE REFERÊNCIA: ", 1, 0, 'L')
         pdf.cell(0, 8, "", 1, 1, 'L')
 
         # 4. Assinatura
@@ -564,6 +564,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
