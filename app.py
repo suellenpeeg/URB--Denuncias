@@ -99,7 +99,7 @@ def gerar_pdf(dados):
                 self.cell(0, 6, clean_text("Central de Atendimento"), 0, 1, 'C')
                 self.ln(5)
             
-            # --- NOVO TRECHO: RODAPÉ ---
+            # --- RODAPÉ ---
             def footer(self):
                 # Posiciona a 2.0 cm do fim da página
                 self.set_y(-22)
@@ -184,7 +184,6 @@ def gerar_pdf(dados):
         pdf.multi_cell(0, 5, clean_text(dados.get('descricao', '')), 1, 'L')
 
         # 3. Local e Geolocalização
-        celula_cinza("")
         pdf.set_font("Arial", 'B', 8)
         pdf.cell(30, 8, "LOGRADOURO:", "LB", 0, 'L')
         pdf.set_font("Arial", '', 9)
@@ -598,6 +597,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
