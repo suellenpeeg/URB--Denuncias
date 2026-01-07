@@ -204,7 +204,7 @@ def gerar_pdf(dados):
         pdf.set_font("Arial", '', 8)
         pdf.cell(0, 8, geo_texto, 1, 1, 'L')
 
-        pdf.set_font("Arial", 'B', 8)
+        pdf.set_font("Arial", 'B', 7)
         pdf.cell(35, 8, "PONTO DE REFERÊNCIA:   ", 1, 0, 'L')
         pdf.cell(0, 8, "", 1, 1, 'L')
 
@@ -598,6 +598,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
