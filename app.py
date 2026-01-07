@@ -78,9 +78,19 @@ def clean_text(text):
     text = str(text).replace("–", "-").replace("“", '"').replace("”", '"').replace("’", "'")
     return text.encode('latin-1', 'replace').decode('latin-1')
 
+from fpdf import FPDF
+import pandas as pd
+
+def clean_text(text):
+    """Limpa o texto para evitar erros de codificação no PDF."""
+    if text is None: 
+        return ""
+    text = str(text).replace("–", "-").replace("“", '"').replace("”", '"').replace("’", "'")
+    return text.encode('latin-1', 'replace').decode('latin-1')
+
 def gerar_pdf(dados):
     try:
-        # Classe customizada para o Cabeçalho
+        # Classe customizada para incluir Header e Footer
         class PDF(FPDF):
             def header(self):
                 self.set_font('Arial', 'B', 14)
@@ -88,9 +98,32 @@ def gerar_pdf(dados):
                 self.set_font('Arial', 'B', 12)
                 self.cell(0, 6, clean_text("Central de Atendimento"), 0, 1, 'C')
                 self.ln(5)
+            
+            # --- NOVO TRECHO: RODAPÉ ---
+            def footer(self):
+                # Posiciona a 2.0 cm do fim da página
+                self.set_y(-22)
+                
+                # Configura fonte e cor de fundo (Cinza)
+                self.set_font('Arial', 'B', 8)
+                self.set_fill_color(220, 220, 220)
+                
+                # Texto do rodapé extraído da imagem
+                texto = (
+                    "AUTARQUIA DE URBANIZAÇÃO E MEIO AMBIENTE DE CARUARU - URB\n"
+                    "Rua Visconde de Inhaúma, 1191. Bairro Maurício de Nassau\n"
+                    "Telefones: (81) 3101-0108   (81) 98384-3216"
+                )
+                
+                # MultiCell cria a caixa com quebra de linha automática e fundo preenchido
+                # 0 = largura total, 4 = altura da linha, 1 = borda, 'C' = centralizado, fill=True
+                self.multi_cell(0, 4, clean_text(texto), 1, 'C', fill=True)
+            # ---------------------------
 
         pdf = PDF()
-        pdf.set_auto_page_break(auto=True, margin=15)
+        # Aumentei um pouco a margem inferior (bottom margin) para o texto não bater no rodapé
+        pdf.set_auto_page_break(auto=True, margin=25) 
+        
         pdf.add_page()
         pdf.set_line_width(0.3)
         
@@ -100,7 +133,6 @@ def gerar_pdf(dados):
             pdf.cell(0, 6, clean_text(texto), 1, 1, 'L', fill=True)
 
         # 1. Cabeçalho da OS
-        tipo_os = str(dados.get('tipo', '')).upper()
         celula_cinza(f"ORDEM DE SERVIÇO - SETOR DE FISCALIZAÇÃO")
         
         # Tratamento de Data e Hora
@@ -163,7 +195,7 @@ def gerar_pdf(dados):
         pdf.set_font("Arial", '', 9)
         pdf.cell(0, 8, clean_text(dados.get('numero', '')), "RB", 1, 'L')
 
-        # Campo Geolocalização (conforme imagem enviada)
+        # Campo Geolocalização
         lat = str(dados.get('latitude', ''))
         lon = str(dados.get('longitude', ''))
         geo_texto = f"{lat}  {lon}" if lat or lon else ""
@@ -179,10 +211,14 @@ def gerar_pdf(dados):
         # 4. Assinatura
         pdf.ln(2)
         y_sig = pdf.get_y()
-        pdf.rect(10, y_sig, 130, 18) # Caixa Nome
-        pdf.rect(140, y_sig, 60, 18) # Caixa Rubrica
+        # Verifica se tem espaço na página, senão quebra página para não cortar a assinatura
+        if y_sig > 230: 
+             pdf.add_page()
+             y_sig = pdf.get_y()
+
+        pdf.rect(10, y_sig, 130, 18) 
+        pdf.rect(140, y_sig, 60, 18) 
         
-        # Cabeçalho da Rubrica azulzinho igual à imagem
         pdf.set_fill_color(200, 220, 255)
         pdf.set_xy(140, y_sig)
         pdf.set_font("Arial", '', 7)
@@ -199,10 +235,9 @@ def gerar_pdf(dados):
         pdf.set_xy(10, y_sig + 22)
         celula_cinza("INFORMAÇÕES DA FISCALIZAÇÃO")
         
-        # Linha Rubrica da Fiscalização
         y_fisc = pdf.get_y()
         pdf.set_fill_color(200, 220, 255)
-        pdf.set_xy(140, y_fisc - 6) # Sobe para alinhar com o título cinza
+        pdf.set_xy(140, y_fisc - 6) 
         pdf.cell(60, 6, "Rubrica", 1, 1, 'C', fill=True)
         
         pdf.set_font("Arial", 'B', 8)
@@ -213,7 +248,6 @@ def gerar_pdf(dados):
         pdf.cell(0, 5, "OBSERVAÇÕES E DESCRIÇÃO DA OCORRÊNCIA", "LR", 1, 'C')
         pdf.cell(0, 45, "", "LRB", 1, 'L')
 
-        # --- CORREÇÃO DO ERRO 'BYTEARRAY' ---
         pdf_output = pdf.output(dest='S')
         if isinstance(pdf_output, str):
             return pdf_output.encode('latin-1')
@@ -564,6 +598,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
