@@ -195,6 +195,7 @@ def gerar_pdf(dados):
         pdf.cell(0, 8, clean_text(dados.get('numero', '')), "RB", 1, 'L')
 
         # Campo Geolocalização
+        celula_cinza("  ")
         lat = str(dados.get('latitude', ''))
         lon = str(dados.get('longitude', ''))
         geo_texto = f"{lat}  {lon}" if lat or lon else ""
@@ -597,6 +598,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
