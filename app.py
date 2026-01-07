@@ -105,7 +105,7 @@ def gerar_pdf(dados):
                 self.set_y(-22)
                 
                 # Configura fonte e cor de fundo (Cinza)
-                self.set_font('Arial', 'B', 8)
+                self.set_font('Arial', 'B', 9)
                 self.set_fill_color(220, 220, 220)
                 
                 # Texto do rodapé extraído da imagem
@@ -205,7 +205,7 @@ def gerar_pdf(dados):
         pdf.cell(0, 8, geo_texto, 1, 1, 'L')
 
         pdf.set_font("Arial", 'B', 8)
-        pdf.cell(35, 8, "PONTO DE REFERÊNCIA: ", 1, 0, 'L')
+        pdf.cell(35, 8, "PONTO DE REFERÊNCIA:   ", 1, 0, 'L')
         pdf.cell(0, 8, "", 1, 1, 'L')
 
         # 4. Assinatura
@@ -598,6 +598,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
