@@ -89,6 +89,40 @@ def clean_text(text):
     return text.encode('latin-1', 'replace').decode('latin-1')
 
 def gerar_pdf(dados):
+    def gerar_pdf(dados):
+    try:
+        class PDF(FPDF):
+            def header(self):
+                # --- INCLUSÃO DO LOGO ---
+                # image(caminho, x, y, largura) - Ajuste x e w (largura) se necessário
+                try:
+                    # Tenta carregar o logo. Se o arquivo não existir, o PDF não trava.
+                    self.image('logo.png', x=90, y=8, w=30) 
+                    self.ln(20) # Espaço após o logo para não sobrepor o texto
+                except:
+                    self.ln(5) # Se der erro no logo, apenas pula um espaço menor
+
+                self.set_font('Arial', 'B', 14)
+                self.cell(0, 6, clean_text("Autarquia de Urbanização e Meio Ambiente de Caruaru"), 0, 1, 'C')
+                self.set_font('Arial', 'B', 12)
+                self.cell(0, 6, clean_text("Central de Atendimento"), 0, 1, 'C')
+                self.ln(5)
+            
+            def footer(self):
+                self.set_y(-22)
+                self.set_font('Arial', 'B', 9)
+                self.set_fill_color(220, 220, 220)
+                texto = (
+                    "AUTARQUIA DE URBANIZAÇÃO E MEIO AMBIENTE DE CARUARU - URB\n"
+                    "Rua Visconde de Inhaúma, 1191. Bairro Maurício de Nassau\n"
+                    "Telefones: (81) 3101-0108   (81) 98384-3216"
+                )
+                self.multi_cell(0, 4, clean_text(texto), 1, 'C', fill=True)
+
+        pdf = PDF()
+        pdf.set_auto_page_break(auto=True, margin=25) 
+        pdf.add_page()
+   
     try:
         # --- CLASSE PDF INTERNA (CABEÇALHO E RODAPÉ) ---
         class PDF(FPDF):
@@ -706,6 +740,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
