@@ -490,36 +490,7 @@ elif page == "Registrar Denúncia":
 # ============================================================
 # PÁGINA 3: HISTÓRICO / GERENCIAMENTO (COM FILTROS E EXCLUSÃO)
 # ============================================================
-elif page == "Histórico / Editar":
-    st.title("🗂️ Gerenciamento de Ocorrências")
-    
-    # Carregar dados atualizados
-    df = load_data(SHEET_DENUNCIAS)
-    
-    if df.empty:
-        st.warning("Nenhum registro encontrado no banco de dados.")
-        st.stop()
-
-    # --- SEÇÃO DE FILTROS ---
-    with st.expander("🔍 Filtros de Busca", expanded=False):
-        c1, c2, c3, c4 = st.columns(4)
-        f_bairro = c1.text_input("Bairro")
-        f_zona = c2.selectbox("Zona", ["Todos"] + OPCOES_ZONA)
-        f_status = c3.selectbox("Status", ["Todos"] + OPCOES_STATUS)
-        f_id = c4.text_input("Nº da OS (Ex: 0001)")
-
-    # Aplicar Filtros no DataFrame
-    df_filtrado = df.copy()
-    if f_bairro:
-        df_filtrado = df_filtrado[df_filtrado['bairro'].str.contains(f_bairro, case=False, na=False)]
-    if f_zona != "Todos":
-        df_filtrado = df_filtrado[df_filtrado['zona'] == f_zona]
-    if f_status != "Todos":
-        df_filtrado = df_filtrado[df_filtrado['status'] == f_status]
-    if f_id:
-        df_filtrado = df_filtrado[df_filtrado['external_id'].str.contains(f_id, na=False)]
-
-    # --- LÓGICA DE EDIÇÃO (MODAL SIMULADO) ---
+# --- LÓGICA DE EDIÇÃO (MODAL SIMULADO) ---
     if 'edit_id' in st.session_state:
         st.markdown("---")
         st.subheader(f"📝 Editando OS: {st.session_state.edit_id}")
@@ -530,21 +501,45 @@ elif page == "Histórico / Editar":
             row_data = df.iloc[idx]
             
             with st.form("form_edicao"):
-                col_e1, col_e2 = st.columns(2)
+                # Linha 1: Status, Zona e Origem
+                col_e1, col_e2, col_e3 = st.columns(3)
                 novo_status = col_e1.selectbox("Alterar Status", OPCOES_STATUS, 
                                              index=OPCOES_STATUS.index(row_data['status']) if row_data['status'] in OPCOES_STATUS else 0)
                 nova_zona = col_e2.selectbox("Alterar Zona", OPCOES_ZONA,
                                            index=OPCOES_ZONA.index(row_data['zona']) if row_data['zona'] in OPCOES_ZONA else 0)
+                nova_origem = col_e3.selectbox("Alterar Origem", OPCOES_ORIGEM,
+                                             index=OPCOES_ORIGEM.index(row_data['origem']) if row_data['origem'] in OPCOES_ORIGEM else 0)
                 
-                nova_rua = st.text_input("Rua", value=row_data.get('rua', ''))
+                # Linha 2: Rua e Ponto de Referência
+                col_e4, col_e5 = st.columns([2, 1])
+                nova_rua = col_e4.text_input("Rua", value=row_data.get('rua', ''))
+                nova_ref = col_e5.text_input("Ponto de Referência", value=row_data.get('ponto_referencia', ''))
+
+                # Linha 3: Latitude, Longitude e Número
+                col_lat, col_lon, col_num = st.columns(3)
+                nova_lat = col_lat.text_input("Latitude", value=row_data.get('latitude', ''))
+                nova_lon = col_lon.text_input("Longitude", value=row_data.get('longitude', ''))
+                novo_num = col_num.text_input("Número", value=row_data.get('numero', ''))
+                
+                # Descrição
                 nova_desc = st.text_area("Descrição dos Fatos", value=row_data.get('descricao', ''), height=150)
                 
                 c_btn1, c_btn2 = st.columns([1, 5])
                 if c_btn1.form_submit_button("💾 Atualizar"):
+                    # Atualizando os valores no DataFrame
                     df.at[idx, 'status'] = novo_status
                     df.at[idx, 'zona'] = nova_zona
+                    df.at[idx, 'origem'] = nova_origem
                     df.at[idx, 'rua'] = nova_rua
+                    df.at[idx, 'numero'] = novo_num
+                    df.at[idx, 'latitude'] = nova_lat
+                    df.at[idx, 'longitude'] = nova_lon
+                    df.at[idx, 'ponto_referencia'] = nova_ref
                     df.at[idx, 'descricao'] = nova_desc
+                    
+                    # Atualizar link do maps automaticamente caso mudem lat/lon
+                    if nova_lat and nova_lon:
+                        df.at[idx, 'link_maps'] = f"https://www.google.com/maps?q={nova_lat},{nova_lon}"
                     
                     update_full_sheet(SHEET_DENUNCIAS, df)
                     st.success("Informações atualizadas com sucesso!")
@@ -642,6 +637,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
