@@ -209,7 +209,7 @@ def gerar_pdf(dados):
         pdf.set_font("Arial", '', 8)
         pdf.cell(0, 8, clean_text(dados.get('ponto_referencia', '')), 1, 1, 'L')
 
-        # 4. ASSINATURAS
+       # 4. ASSINATURAS
         pdf.ln(5)
         y_sig = pdf.get_y()
         if y_sig > 230: pdf.add_page(); y_sig = pdf.get_y()
@@ -217,7 +217,7 @@ def gerar_pdf(dados):
         pdf.rect(10, y_sig, 130, 18) 
         pdf.rect(140, y_sig, 60, 18) 
         
-        pdf.set_fill_color(220, 220, 220) # Rubrica em cinza
+        pdf.set_fill_color(220, 220, 220) 
         pdf.set_xy(140, y_sig)
         pdf.set_font("Arial", 'B', 8)
         pdf.cell(60, 6, "Rubrica", 1, 0, 'C', fill=True)
@@ -225,6 +225,11 @@ def gerar_pdf(dados):
         pdf.set_xy(12, y_sig + 2)
         pdf.set_font("Arial", 'B', 7)
         pdf.cell(0, 4, "RECEBIDO POR:", 0, 1)
+        
+        # --- LINHA ADICIONADA PARA PUXAR O NOME ---
+        pdf.set_x(12)
+        pdf.set_font("Arial", '', 9)
+        pdf.cell(125, 8, clean_text(dados.get('quem_recebeu', '')), 0, 0, 'L')
                 
         # 5. INFORMAÇÕES DA FISCALIZAÇÃO
         pdf.set_xy(10, y_sig + 22)
@@ -463,9 +468,7 @@ elif page == "Registrar Denúncia":
                 st.success(f"Denúncia {ext_id} salva com sucesso!")
                 time.sleep(1)
                 st.rerun()
-# ============================================================
-# PÁGINA 3: HISTÓRICO / GERENCIAMENTO (COM FILTROS E EXCLUSÃO)
-# ============================================================
+
 # ============================================================
 # PÁGINA 3: HISTÓRICO / GERENCIAMENTO
 # ============================================================
@@ -559,7 +562,7 @@ elif page == "Histórico / Editar":
         st.write(f"Exibindo **{len(df_filtrado)}** registros")
         df_filtrado = df_filtrado.sort_values(by='id', ascending=False)
 
-        for _, row in df_filtrado.iterrows():
+        for index _, row in df_filtrado.iterrows():
             with st.container(border=True):
                 c_info, c_status, c_pdf, c_edit, c_del = st.columns([3, 1, 0.5, 0.5, 0.5])
                 
@@ -682,6 +685,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
