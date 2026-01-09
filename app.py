@@ -250,14 +250,14 @@ def gerar_pdf(dados):
         y_fisc = pdf.get_y()
         
         # Rubrica Fiscalização
-        pdf.set_fill_color(200, 220, 255)
+        pdf.set_fill_color(220, 220, 220)
         pdf.set_xy(140, y_fisc - 6) 
-        pdf.cell(60, 10, "Rubrica", 1, 1, 'C', fill=True)
+        pdf.cell(60, 8, "", 1, 1, 'C', fill=True)
         
         # Linha Data/Hora Vistoria
         pdf.set_font("Arial", 'B', 8)
-        pdf.cell(90, 8, "DATA DA VISTORIA: _____/_____/_______", 1, 0, 'L')
-        pdf.cell(0, 10, "HORA: _____:_____", 1, 1, 'L')
+        pdf.cell(90, 12, "DATA DA VISTORIA: _____/_____/_______", 1, 0, 'L')
+        pdf.cell(0, 12, "HORA: _____:_____", 1, 1, 'L')
 
         # Espaço em branco para anotações manuais
         pdf.set_font("Arial", '', 7)
@@ -647,6 +647,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
