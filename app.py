@@ -562,7 +562,7 @@ elif page == "Histórico / Editar":
         st.write(f"Exibindo **{len(df_filtrado)}** registros")
         df_filtrado = df_filtrado.sort_values(by='id', ascending=False)
 
-        for index, row in df_filtrado.iterrows():
+        for _, row in df_filtrado.iterrows():
             with st.container(border=True):
                 c_info, c_status, c_pdf, c_edit, c_del = st.columns([3, 1, 0.5, 0.5, 0.5])
                 
@@ -685,6 +685,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
