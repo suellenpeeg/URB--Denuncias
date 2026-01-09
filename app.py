@@ -252,17 +252,17 @@ def gerar_pdf(dados):
         # Rubrica Fiscalização
         pdf.set_fill_color(200, 220, 255)
         pdf.set_xy(140, y_fisc - 6) 
-        pdf.cell(60, 6, "Rubrica", 1, 1, 'C', fill=True)
+        pdf.cell(60, 10, "Rubrica", 1, 1, 'C', fill=True)
         
         # Linha Data/Hora Vistoria
         pdf.set_font("Arial", 'B', 8)
         pdf.cell(90, 8, "DATA DA VISTORIA: _____/_____/_______", 1, 0, 'L')
-        pdf.cell(0, 8, "HORA: _____:_____", 1, 1, 'L')
+        pdf.cell(0, 10, "HORA: _____:_____", 1, 1, 'L')
 
         # Espaço em branco para anotações manuais
         pdf.set_font("Arial", '', 7)
         pdf.cell(0, 5, clean_text("OBSERVAÇÕES E DESCRIÇÃO DA OCORRÊNCIA"), "LR", 1, 'C')
-        pdf.cell(0, 45, "", "LRB", 1, 'L') # Caixa grande vazia
+        pdf.cell(0, 90, "", "LRB", 1, 'L') # Caixa grande vazia
 
         # Gera o binário do PDF
         pdf_output = pdf.output(dest='S')
@@ -647,6 +647,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
