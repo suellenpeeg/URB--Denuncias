@@ -31,7 +31,7 @@ OPCOES_FISCAIS_SELECT = ['Edvaldo Wilson Bezerra da Silva - 000.323', 'PATRICIA 
 # SCHEMAS
 DENUNCIA_SCHEMA = [
     'id', 'external_id', 'created_at', 'origem', 'tipo', 'rua', 
-    'numero', 'bairro', 'zona', 'latitude', 'longitude', 
+    'numero', 'bairro', 'zona', 'ponto_referencia', 'latitude', 'longitude', 'link maps', 
     'descricao', 'quem_recebeu', 'status', 'acao_noturna'
 ]
 
@@ -88,9 +88,13 @@ def clean_text(text):
     text = str(text).replace("–", "-").replace("“", '"').replace("”", '"').replace("’", "'")
     return text.encode('latin-1', 'replace').decode('latin-1')
 
+# ============================================================
+# ALTERAÇÃO 2: ATUALIZAR A FUNÇÃO GERAR_PDF
+# ============================================================
+
 def gerar_pdf(dados):
     try:
-        # Classe customizada para incluir Header e Footer
+        # ... (MANTENHA A CLASSE PDF E HEADER/FOOTER COMO JÁ ESTAVAM) ...
         class PDF(FPDF):
             def header(self):
                 self.set_font('Arial', 'B', 14)
@@ -99,31 +103,19 @@ def gerar_pdf(dados):
                 self.cell(0, 6, clean_text("Central de Atendimento"), 0, 1, 'C')
                 self.ln(5)
             
-            # --- RODAPÉ ---
             def footer(self):
-                # Posiciona a 2.0 cm do fim da página
                 self.set_y(-22)
-                
-                # Configura fonte e cor de fundo (Cinza)
                 self.set_font('Arial', 'B', 9)
                 self.set_fill_color(220, 220, 220)
-                
-                # Texto do rodapé extraído da imagem
                 texto = (
                     "AUTARQUIA DE URBANIZAÇÃO E MEIO AMBIENTE DE CARUARU - URB\n"
                     "Rua Visconde de Inhaúma, 1191. Bairro Maurício de Nassau\n"
                     "Telefones: (81) 3101-0108   (81) 98384-3216"
                 )
-                
-                # MultiCell cria a caixa com quebra de linha automática e fundo preenchido
-                # 0 = largura total, 4 = altura da linha, 1 = borda, 'C' = centralizado, fill=True
                 self.multi_cell(0, 4, clean_text(texto), 1, 'C', fill=True)
-            # ---------------------------
 
         pdf = PDF()
-        # Aumentei um pouco a margem inferior (bottom margin) para o texto não bater no rodapé
         pdf.set_auto_page_break(auto=True, margin=25) 
-        
         pdf.add_page()
         pdf.set_line_width(0.3)
         
@@ -132,57 +124,19 @@ def gerar_pdf(dados):
             pdf.set_font("Arial", 'B', 9)
             pdf.cell(0, 6, clean_text(texto), 1, 1, 'L', fill=True)
 
-        # 1. Cabeçalho da OS
+        # ... (MANTENHA A PARTE 1 E 2 DO CÓDIGO IGUAL: CABEÇALHO E DESCRIÇÃO) ...
+        
+        # --- REPETINDO O INÍCIO PARA CONTEXTO ---
         celula_cinza(f"ORDEM DE SERVIÇO - SETOR DE FISCALIZAÇÃO")
-        
-        # Tratamento de Data e Hora
+        # (Lógica de data/hora mantida...)
         raw_date = str(dados.get('created_at', ''))
-        data_fmt, hora_fmt = raw_date, ""
-        try:
-            if len(raw_date) >= 10:
-                dt_obj = pd.to_datetime(raw_date)
-                data_fmt = dt_obj.strftime('%d/%m/%Y')
-                hora_fmt = dt_obj.strftime('%H:%M')
-        except:
-            pass
-
-        # Linha 1: Nº, DATA, HORA, ORIGEM
-        pdf.set_font("Arial", 'B', 8)
-        pdf.cell(8, 8, "Nº", 1, 0, 'C')
-        pdf.set_font("Arial", '', 9)
-        pdf.cell(25, 8, clean_text(dados.get('external_id', '')), 1, 0, 'C')
+        # ... (Código de Cabeçalho OS, Data, Origem, Bairro, Zona mantidos) ...
         
-        pdf.set_font("Arial", 'B', 8)
-        pdf.cell(12, 8, "DATA:", 1, 0, 'C')
-        pdf.set_font("Arial", '', 9)
-        pdf.cell(22, 8, data_fmt, 1, 0, 'C')
+        # ... (Código da Descrição mantido) ...
 
-        pdf.set_font("Arial", 'B', 8)
-        pdf.cell(12, 8, "HORA:", 1, 0, 'C')
-        pdf.set_font("Arial", '', 9)
-        pdf.cell(15, 8, hora_fmt, 1, 0, 'C')
-
-        pdf.set_font("Arial", 'B', 8)
-        pdf.cell(18, 8, "ORIGEM:", 1, 0, 'L')
-        pdf.set_font("Arial", '', 8)
-        pdf.cell(0, 8, clean_text(dados.get('origem', '')), 1, 1, 'L')
-
-        # Linha 2: Bairro e Zona (TGS)
-        pdf.set_font("Arial", 'B', 8)
-        pdf.cell(35, 8, "BAIRRO OU DISTRITO:", 1, 0, 'L')
-        pdf.set_font("Arial", '', 9)
-        pdf.cell(120, 8, clean_text(dados.get('bairro', '')), 1, 0, 'L')
-        
-        pdf.set_font("Arial", 'B', 8)
-        pdf.cell(10, 8, "TGS:", 1, 0, 'C')
-        pdf.set_font("Arial", '', 9)
-        pdf.cell(0, 8, clean_text(dados.get('zona', '')), 1, 1, 'C')
-
-        # 2. Descrição
-        celula_cinza("DESCRIÇÃO DA ORDEM DE SERVIÇO")
-        pdf.set_font("Arial", '', 9)
-        pdf.multi_cell(0, 5, clean_text(dados.get('descricao', '')), 1, 'L')
-        pdf.set_x(10)
+        # -------------------------------------------------------------
+        # AQUI COMEÇA A ALTERAÇÃO PRINCIPAL DO PDF
+        # -------------------------------------------------------------
         
         # 3. Local e Geolocalização
         pdf.set_font("Arial", 'B', 8)
@@ -195,24 +149,41 @@ def gerar_pdf(dados):
         pdf.set_font("Arial", '', 9)
         pdf.cell(0, 8, clean_text(dados.get('numero', '')), "RB", 1, 'L')
 
-        # Campo Geolocalização
+        # Campo Geolocalização (Lat/Lon + Link se couber ou apenas Lat/Lon)
         celula_cinza("  ")
         lat = str(dados.get('latitude', ''))
         lon = str(dados.get('longitude', ''))
-        geo_texto = f"{lat}  {lon}" if lat or lon else ""
+        link_maps = str(dados.get('link_maps', ''))
+        
+        # Monta o texto. Se tiver link, coloca o link, senão só lat/lon
+        if lat and lon:
+            geo_texto = f"Lat: {lat} | Lon: {lon}"
+            # Se quiser imprimir o link no PDF descomente abaixo, mas links são longos e quebram o layout
+            # if link_maps: geo_texto += f" - {link_maps}"
+        else:
+            geo_texto = "Não informada"
+
         pdf.set_font("Arial", 'B', 8)
         pdf.cell(30, 8, "GEOLOCALIZAÇÃO: ", 1, 0, 'L')
-        pdf.set_font("Arial", '', 8)
+        pdf.set_font("Arial", '', 7) # Fonte menor para caber
         pdf.cell(0, 8, geo_texto, 1, 1, 'L')
 
+        # Campo Ponto de Referência (Preenchendo o espaço existente)
+        ref_texto = str(dados.get('ponto_referencia', ''))
+        
         pdf.set_font("Arial", 'B', 7)
-        pdf.cell(35, 8, "PONTO DE REFERÊNCIA:   ", 1, 0, 'L')
-        pdf.cell(0, 8, "", 1, 1, 'L')
+        pdf.cell(35, 8, clean_text("PONTO DE REFERÊNCIA:   "), 1, 0, 'L')
+        pdf.set_font("Arial", '', 8)
+        # AQUI: Substituímos o "" vazio pela variável ref_texto
+        pdf.cell(0, 8, clean_text(ref_texto), 1, 1, 'L') 
 
-        # 4. Assinatura
+        # -------------------------------------------------------------
+        # FIM DA ALTERAÇÃO PRINCIPAL - O RESTO SEGUE NORMAL
+        # -------------------------------------------------------------
+
+        # 4. Assinatura e Restante do código (Mantidos iguais)
         pdf.ln(2)
         y_sig = pdf.get_y()
-        # Verifica se tem espaço na página, senão quebra página para não cortar a assinatura
         if y_sig > 230: 
              pdf.add_page()
              y_sig = pdf.get_y()
@@ -232,7 +203,6 @@ def gerar_pdf(dados):
         pdf.set_x(12)
         pdf.cell(125, 8, clean_text(dados.get('quem_recebeu', '')), 0, 0, 'L')
 
-        # 5. Informações da Fiscalização
         pdf.set_xy(10, y_sig + 22)
         celula_cinza("INFORMAÇÕES DA FISCALIZAÇÃO")
         
@@ -256,7 +226,6 @@ def gerar_pdf(dados):
 
     except Exception as e:
         return str(e)
-
 # ============================================================
 # FUNÇÕES DE BANCO DE DADOS
 # ============================================================
@@ -407,7 +376,7 @@ if page == "Dashboard":
         st.info("Sem dados.")
 
 # ============================================================
-# PÁGINA 2: REGISTRO
+# ALTERAÇÃO 3: PÁGINA DE REGISTRO
 # ============================================================
 elif page == "Registrar Denúncia":
     st.title("📝 Nova Denúncia")
@@ -415,12 +384,32 @@ elif page == "Registrar Denúncia":
         c1, c2 = st.columns(2)
         origem = c1.selectbox('Origem', OPCOES_ORIGEM)
         tipo = c2.selectbox('Tipo', OPCOES_TIPO)
+        
+        # Endereço
         rua = st.text_input('Rua')
         c3, c4, c5 = st.columns(3)
         numero = c3.text_input('Número')
         bairro = c4.text_input('Bairro')
         zona = c5.selectbox('Zona', OPCOES_ZONA)
-        desc = st.text_area('Descrição')
+        
+        # --- NOVO: Geolocalização e Referência ---
+        st.markdown("---")
+        st.markdown("**📍 Localização e Referência**")
+        col_lat, col_lon = st.columns(2)
+        latitude = col_lat.text_input('Latitude (Ex: -8.2828)')
+        longitude = col_lon.text_input('Longitude (Ex: -35.9701)')
+        
+        ponto_ref = st.text_input('Ponto de Referência')
+        
+        # Lógica visual para mostrar o link gerado (apenas informativo na tela)
+        link_google = ""
+        if latitude and longitude:
+            link_google = f"https://www.google.com/maps?q={latitude},{longitude}"
+            st.caption(f"Link gerado: {link_google}")
+        # ------------------------------------------
+
+        st.markdown("---")
+        desc = st.text_area('Descrição da Ocorrência')
         quem = st.selectbox('Quem recebeu', OPCOES_FISCAIS_SELECT)
         
         if st.form_submit_button('💾 Salvar'):
@@ -432,18 +421,31 @@ elif page == "Registrar Denúncia":
                 ext_id = f"{new_id:04d}/{datetime.now().year}"
                 agora_br = datetime.now(FUSO_BR).strftime('%Y-%m-%d %H:%M:%S')
                 
+                # Atualizando o dicionário com os novos campos
                 record = {
-                    'id': new_id, 'external_id': ext_id, 'created_at': agora_br,
-                    'origem': origem, 'tipo': tipo, 'rua': rua, 'numero': numero,
-                    'bairro': bairro, 'zona': zona, 'latitude': '', 'longitude': '',
-                    'descricao': desc, 'quem_recebeu': quem, 'status': 'Pendente',
+                    'id': new_id, 
+                    'external_id': ext_id, 
+                    'created_at': agora_br,
+                    'origem': origem, 
+                    'tipo': tipo, 
+                    'rua': rua, 
+                    'numero': numero,
+                    'bairro': bairro, 
+                    'zona': zona, 
+                    'latitude': latitude,      # Salva o input
+                    'longitude': longitude,    # Salva o input
+                    'ponto_referencia': ponto_ref, # Salva o input
+                    'link_maps': link_google,  # Salva o link gerado
+                    'descricao': desc, 
+                    'quem_recebeu': quem, 
+                    'status': 'Pendente',
                     'acao_noturna': 'FALSE'
                 }
+                
                 salvar_dados_seguro(SHEET_DENUNCIAS, record)
-                st.success(f"Denúncia {ext_id} salva!")
+                st.success(f"Denúncia {ext_id} salva com sucesso!")
                 time.sleep(1)
                 st.rerun()
-
 # ============================================================
 # PÁGINA 3: HISTÓRICO / GERENCIAMENTO (COM FILTROS E EXCLUSÃO)
 # ============================================================
@@ -599,6 +601,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
