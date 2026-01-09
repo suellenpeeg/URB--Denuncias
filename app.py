@@ -622,7 +622,7 @@ elif page == "Histórico / Editar":
             res_pdf = gerar_pdf(row)
             if isinstance(res_pdf, bytes):
                 c_pdf.markdown("<br>", unsafe_allow_html=True)
-                c_pdf.download_button("📄", res_pdf, f"OS_{row['external_id']}.pdf", "application/pdf", key=f"pdf_{row['id']}")
+                c_pdf.download_button("📄", res_pdf, f"OS_{row['external_id']}.pdf", "application/pdf", key=f"pdf_{row['id']}_{row['external_id']}_{index}")
             
             # Coluna Editar
             c_edit.markdown("<br>", unsafe_allow_html=True)
@@ -682,6 +682,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
