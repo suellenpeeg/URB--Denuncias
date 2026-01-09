@@ -490,68 +490,137 @@ elif page == "Registrar Denúncia":
 # ============================================================
 # PÁGINA 3: HISTÓRICO / GERENCIAMENTO (COM FILTROS E EXCLUSÃO)
 # ============================================================
-# --- LÓGICA DE EDIÇÃO (MODAL SIMULADO) ---
-    if 'edit_id' in st.session_state:
-        st.markdown("---")
-        st.subheader(f"📝 Editando OS: {st.session_state.edit_id}")
-        idx_list = df.index[df['id'] == st.session_state.edit_id].tolist()
-        
-        if idx_list:
-            idx = idx_list[0]
-            row_data = df.iloc[idx]
+# ============================================================
+# PÁGINA 3: HISTÓRICO / GERENCIAMENTO
+# ============================================================
+elif page == "Histórico / Editar":
+    st.title("🗂️ Gerenciamento de Ocorrências")
+    
+    # Carregar dados atualizados
+    df = load_data(SHEET_DENUNCIAS)
+    
+    if df.empty:
+        st.warning("Nenhum registro encontrado no banco de dados.")
+    else:
+        # --- SEÇÃO DE FILTROS ---
+        with st.expander("🔍 Filtros de Busca", expanded=False):
+            c1, c2, c3, c4 = st.columns(4)
+            f_bairro = c1.text_input("Bairro")
+            f_zona = c2.selectbox("Zona", ["Todos"] + OPCOES_ZONA)
+            f_status = c3.selectbox("Status", ["Todos"] + OPCOES_STATUS)
+            f_id = c4.text_input("Nº da OS (Ex: 0001)")
+
+        # Aplicar Filtros
+        df_filtrado = df.copy()
+        if f_bairro:
+            df_filtrado = df_filtrado[df_filtrado['bairro'].str.contains(f_bairro, case=False, na=False)]
+        if f_zona != "Todos":
+            df_filtrado = df_filtrado[df_filtrado['zona'] == f_zona]
+        if f_status != "Todos":
+            df_filtrado = df_filtrado[df_filtrado['status'] == f_status]
+        if f_id:
+            df_filtrado = df_filtrado[df_filtrado['external_id'].str.contains(f_id, na=False)]
+
+        # --- LÓGICA DE EDIÇÃO ---
+        if 'edit_id' in st.session_state:
+            st.markdown("---")
+            st.subheader(f"📝 Editando OS: {st.session_state.edit_id}")
+            idx_list = df.index[df['id'] == st.session_state.edit_id].tolist()
             
-            with st.form("form_edicao"):
-                # Linha 1: Status, Zona e Origem
-                col_e1, col_e2, col_e3 = st.columns(3)
-                novo_status = col_e1.selectbox("Alterar Status", OPCOES_STATUS, 
-                                             index=OPCOES_STATUS.index(row_data['status']) if row_data['status'] in OPCOES_STATUS else 0)
-                nova_zona = col_e2.selectbox("Alterar Zona", OPCOES_ZONA,
-                                           index=OPCOES_ZONA.index(row_data['zona']) if row_data['zona'] in OPCOES_ZONA else 0)
-                nova_origem = col_e3.selectbox("Alterar Origem", OPCOES_ORIGEM,
-                                             index=OPCOES_ORIGEM.index(row_data['origem']) if row_data['origem'] in OPCOES_ORIGEM else 0)
+            if idx_list:
+                idx = idx_list[0]
+                row_data = df.iloc[idx]
                 
-                # Linha 2: Rua e Ponto de Referência
-                col_e4, col_e5 = st.columns([2, 1])
-                nova_rua = col_e4.text_input("Rua", value=row_data.get('rua', ''))
-                nova_ref = col_e5.text_input("Ponto de Referência", value=row_data.get('ponto_referencia', ''))
-
-                # Linha 3: Latitude, Longitude e Número
-                col_lat, col_lon, col_num = st.columns(3)
-                nova_lat = col_lat.text_input("Latitude", value=row_data.get('latitude', ''))
-                nova_lon = col_lon.text_input("Longitude", value=row_data.get('longitude', ''))
-                novo_num = col_num.text_input("Número", value=row_data.get('numero', ''))
-                
-                # Descrição
-                nova_desc = st.text_area("Descrição dos Fatos", value=row_data.get('descricao', ''), height=150)
-                
-                c_btn1, c_btn2 = st.columns([1, 5])
-                if c_btn1.form_submit_button("💾 Atualizar"):
-                    # Atualizando os valores no DataFrame
-                    df.at[idx, 'status'] = novo_status
-                    df.at[idx, 'zona'] = nova_zona
-                    df.at[idx, 'origem'] = nova_origem
-                    df.at[idx, 'rua'] = nova_rua
-                    df.at[idx, 'numero'] = novo_num
-                    df.at[idx, 'latitude'] = nova_lat
-                    df.at[idx, 'longitude'] = nova_lon
-                    df.at[idx, 'ponto_referencia'] = nova_ref
-                    df.at[idx, 'descricao'] = nova_desc
+                with st.form("form_edicao"):
+                    col_e1, col_e2, col_e3 = st.columns(3)
                     
-                    # Atualizar link do maps automaticamente caso mudem lat/lon
-                    if nova_lat and nova_lon:
-                        df.at[idx, 'link_maps'] = f"https://www.google.com/maps?q={nova_lat},{nova_lon}"
-                    
-                    update_full_sheet(SHEET_DENUNCIAS, df)
-                    st.success("Informações atualizadas com sucesso!")
-                    del st.session_state.edit_id
-                    time.sleep(1)
-                    st.rerun()
-                
-                if c_btn2.form_submit_button("Cancelar"):
-                    del st.session_state.edit_id
-                    st.rerun()
-        st.markdown("---")
+                    # Garantir que o index do selectbox não quebre se o valor atual não estiver na lista
+                    def get_index(lista, valor):
+                        return lista.index(valor) if valor in lista else 0
 
+                    novo_status = col_e1.selectbox("Status", OPCOES_STATUS, index=get_index(OPCOES_STATUS, row_data['status']))
+                    nova_zona = col_e2.selectbox("Zona", OPCOES_ZONA, index=get_index(OPCOES_ZONA, row_data['zona']))
+                    nova_origem = col_e3.selectbox("Origem", OPCOES_ORIGEM, index=get_index(OPCOES_ORIGEM, row_data['origem']))
+                    
+                    col_e4, col_e5 = st.columns([2, 1])
+                    nova_rua = col_e4.text_input("Rua", value=str(row_data.get('rua', '')))
+                    nova_ref = col_e5.text_input("Ponto de Referência", value=str(row_data.get('ponto_referencia', '')))
+
+                    col_lat, col_lon, col_num = st.columns(3)
+                    nova_lat = col_lat.text_input("Latitude", value=str(row_data.get('latitude', '')))
+                    nova_lon = col_lon.text_input("Longitude", value=str(row_data.get('longitude', '')))
+                    novo_num = col_num.text_input("Número", value=str(row_data.get('numero', '')))
+                    
+                    nova_desc = st.text_area("Descrição", value=str(row_data.get('descricao', '')), height=150)
+                    
+                    c_btn1, c_btn2 = st.columns([1, 5])
+                    if c_btn1.form_submit_button("💾 Atualizar"):
+                        df.at[idx, 'status'] = novo_status
+                        df.at[idx, 'zona'] = nova_zona
+                        df.at[idx, 'origem'] = nova_origem
+                        df.at[idx, 'rua'] = nova_rua
+                        df.at[idx, 'numero'] = novo_num
+                        df.at[idx, 'latitude'] = nova_lat
+                        df.at[idx, 'longitude'] = nova_lon
+                        df.at[idx, 'ponto_referencia'] = nova_ref
+                        df.at[idx, 'descricao'] = nova_desc
+                        
+                        if nova_lat and nova_lon:
+                            df.at[idx, 'link_maps'] = f"https://www.google.com/maps?q={nova_lat},{nova_lon}"
+                        
+                        update_full_sheet(SHEET_DENUNCIAS, df)
+                        st.success("Atualizado!")
+                        del st.session_state.edit_id
+                        time.sleep(1)
+                        st.rerun()
+                    
+                    if c_btn2.form_submit_button("Cancelar"):
+                        del st.session_state.edit_id
+                        st.rerun()
+            st.markdown("---")
+
+        # --- LISTAGEM DOS CARDS ---
+        st.write(f"Exibindo **{len(df_filtrado)}** registros")
+        df_filtrado = df_filtrado.sort_values(by='id', ascending=False)
+
+        for _, row in df_filtrado.iterrows():
+            with st.container(border=True):
+                c_info, c_status, c_pdf, c_edit, c_del = st.columns([3, 1, 0.5, 0.5, 0.5])
+                
+                c_info.markdown(f"### OS {row['external_id']}")
+                c_info.write(f"📍 **{row['rua']}**, {row['numero']} - {row['bairro']} ({row['zona']})")
+                
+                st_val = str(row['status'])
+                clr = "orange" if st_val == "Pendente" else "green" if st_val == "Concluída" else "blue"
+                c_status.markdown(f"<br>:{clr}[**{st_val.upper()}**]", unsafe_allow_html=True)
+                
+                res_pdf = gerar_pdf(row)
+                if isinstance(res_pdf, bytes):
+                    c_pdf.markdown("<br>", unsafe_allow_html=True)
+                    c_pdf.download_button("📄", res_pdf, f"OS_{row['external_id']}.pdf", "application/pdf", key=f"pdf_{row['id']}")
+                
+                c_edit.markdown("<br>", unsafe_allow_html=True)
+                if c_edit.button("✏️", key=f"ed_{row['id']}"):
+                    st.session_state.edit_id = row['id']
+                    st.rerun()
+                    
+                c_del.markdown("<br>", unsafe_allow_html=True)
+                if c_del.button("🗑️", key=f"del_{row['id']}"):
+                    st.session_state.confirm_del = row['id']
+
+                # Confirmação de exclusão
+                if 'confirm_del' in st.session_state and st.session_state.confirm_del == row['id']:
+                    st.error(f"Excluir OS {row['external_id']}?")
+                    ca1, ca2 = st.columns([1, 8])
+                    if ca1.button("Sim", key=f"conf_{row['id']}"):
+                        df_final = df[df['id'] != row['id']]
+                        update_full_sheet(SHEET_DENUNCIAS, df_final)
+                        del st.session_state.confirm_del
+                        st.rerun()
+                    if ca2.button("Não", key=f"back_{row['id']}"):
+                        del st.session_state.confirm_del
+                        st.rerun()
+                        
     # --- LISTAGEM DE CARDS ---
     st.write(f"Exibindo **{len(df_filtrado)}** registros")
     
@@ -637,6 +706,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
