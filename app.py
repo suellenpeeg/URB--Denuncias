@@ -244,15 +244,10 @@ def gerar_pdf(dados):
         pdf.cell(125, 8, clean_text(dados.get('quem_recebeu', '')), 0, 0, 'L')
 
         # 5. INFORMAÇÕES DA FISCALIZAÇÃO (CAMPO PARA PREENCHER NA RUA)
-        pdf.set_xy(12, y_sig + 22)
+        pdf.set_xy(10, y_sig + 22)
         celula_cinza("INFORMAÇÕES DA FISCALIZAÇÃO")
         
         y_fisc = pdf.get_y()
-        
-        # Rubrica Fiscalização
-        pdf.set_fill_color(220, 220, 220)
-        pdf.set_xy(140, y_fisc - 6) 
-        pdf.cell(60, 8, "", 1, 1, 'C', fill=True)
         
         # Linha Data/Hora Vistoria
         pdf.set_font("Arial", 'B', 8)
@@ -647,6 +642,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
