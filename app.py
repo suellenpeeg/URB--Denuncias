@@ -176,13 +176,10 @@ def gerar_pdf(dados):
         pdf.set_font("Arial", '', 9)
         pdf.cell(0, 8, clean_text(dados.get('zona', '')), 1, 1, 'C')
 
-        pdf.set_font("Arial", 'B', 8)
-        pdf.cell(0, 5, "DESCRICAO DA DENUNCIA (SISTEMA):", 0, 1, 'L')
-        pdf.set_font("Arial", '', 8)
-        
-        # O multi_cell permite que a descrição cresça e quebre a página se necessário
-        texto_denuncia = clean_text(str(dados.get('descricao', '')))
-        pdf.multi_cell(0, 5, texto_denuncia, 0, 'L')
+        celula_cinza("DESCRIÇÃO DA ORDEM DE SERVIÇO")
+        pdf.set_font("Arial", '', 9)
+        pdf.multi_cell(0, 5, clean_text(dados.get('descricao', '')), 1, 'L')
+        pdf.set_x(10)
         
         # 3. ENDEREÇO, GEOLOCALIZAÇÃO E PONTO DE REFERÊNCIA
         pdf.set_font("Arial", 'B', 8)
@@ -200,7 +197,7 @@ def gerar_pdf(dados):
         lon = str(dados.get('longitude', ''))
         link = str(dados.get('link_maps', '')) # Puxa o link do banco de dados
         
-        geo_texto = f"Lat e Lot: {lat} , {lon}" if lat and lon else "Não informada"
+        geo_texto = f"Lat e Lon: {lat} , {lon}" if lat and lon else "Não informada"
 
         pdf.set_font("Arial", 'B', 8)
         pdf.cell(35, 8, clean_text("GEOLOCALIZAÇÃO:"), 1, 0, 'L')
@@ -669,6 +666,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
