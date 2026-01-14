@@ -408,7 +408,7 @@ if page == "Dashboard":
         st.divider()
 
         with col_graf1:
-    st.subheader("Tipo de Denúncia")
+        st.subheader("Tipo de Denúncia")
     
     # 1. Padronização dos Nomes (Limpeza)
     df_tipo = df.copy()
@@ -745,6 +745,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
