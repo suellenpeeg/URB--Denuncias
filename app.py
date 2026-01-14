@@ -108,7 +108,7 @@ def gerar_pdf(dados):
             
             def adicionar_rodape_final(pdf):
             # Posiciona a 35mm do fim da página para não cortar
-            pdf.set_y(-35)
+               pdf.set_y(-35)
     
             # Linha cinza superior do rodapé
             pdf.set_fill_color(230, 230, 230)
@@ -669,6 +669,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
