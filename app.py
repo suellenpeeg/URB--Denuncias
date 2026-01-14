@@ -581,53 +581,61 @@ elif page == "Histórico / Editar":
             st.markdown("---")
 
         # --- LISTAGEM ÚNICA DE CARDS ---
+        s# --- LISTAGEM ÚNICA DE CARDS ---
         st.write(f"Exibindo **{len(df_filtrado)}** registros")
         df_filtrado = df_filtrado.sort_values(by='id', ascending=False)
 
-        for i, row in df_filtrado.iterrows():
+        # O 'i' aqui garante que cada linha do loop tenha um número único
+        for i, row in enumerate(df_filtrado.itertuples()):
+            # Usamos row.id e row.external_id (itertuples é mais rápido e seguro)
+            idx_real = row.id
+            ext_id_limpo = str(row.external_id).replace('/', '_')
+
             with st.container(border=True):
                 c_info, c_status, c_pdf, c_edit, c_del = st.columns([3, 1, 0.5, 0.5, 0.5])
                 
-                c_info.markdown(f"### OS {row['external_id']}")
-                c_info.write(f"📍 **{row['rua']}**, {row['numero']} - {row['bairro']} ({row['zona']})")
-                c_info.caption(f"🗓️ {row['created_at']} | 👤 {row['quem_recebeu']}")
+                c_info.markdown(f"### OS {row.external_id}")
+                c_info.write(f"📍 **{row.rua}**, {row.numero} - {row.bairro} ({row.zona})")
+                c_info.caption(f"🗓️ {row.created_at} | 👤 {row.quem_recebeu}")
                 
-                st_val = str(row['status'])
+                st_val = str(row.status)
                 clr = "orange" if st_val == "Pendente" else "green" if st_val == "Concluída" else "blue"
                 c_status.markdown(f"<br>:{clr}[**{st_val.upper()}**]", unsafe_allow_html=True)
                 
-                # Botão PDF com Chave Única
-                res_pdf = gerar_pdf(row)
+                # 1. BOTÃO PDF (CHAVE ÚNICA)
+                res_pdf = gerar_pdf(row._asdict()) # converte linha para dicionário
                 if isinstance(res_pdf, bytes):
                     c_pdf.markdown("<br>", unsafe_allow_html=True)
-                    chave_unica = f"pdf_btn_{row['id']}_{i}_{row['external_id'].replace('/', '_')}"
                     c_pdf.download_button(
-                        label="📄",
-                        data=res_pdf,
-                        file_name=f"OS_{row['external_id'].replace('/', '_')}.pdf",
-                        mime="application/pdf",
-                        key=chave_unica
+                        "📄", 
+                        res_pdf, 
+                        f"OS_{ext_id_limpo}.pdf", 
+                        "application/pdf", 
+                        key=f"pdf_btn_{idx_real}_{i}"
                     )
                 
+                # 2. BOTÃO EDITAR (CHAVE ÚNICA)
                 c_edit.markdown("<br>", unsafe_allow_html=True)
-                if c_edit.button("✏️", key=f"ed_btn_{row['id']}"):
-                    st.session_state.edit_id = row['id']
+                if c_edit.button("✏️", key=f"ed_btn_{idx_real}_{i}"):
+                    st.session_state.edit_id = idx_real
                     st.rerun()
                     
+                # 3. BOTÃO DELETAR (CHAVE ÚNICA)
                 c_del.markdown("<br>", unsafe_allow_html=True)
-                if c_del.button("🗑️", key=f"del_btn_{row['id']}"):
-                    st.session_state.confirm_del = row['id']
+                if c_del.button("🗑️", key=f"del_btn_{idx_real}_{i}"):
+                    st.session_state.confirm_del = idx_real
 
-                # Confirmação de exclusão
-                if 'confirm_del' in st.session_state and st.session_state.confirm_del == row['id']:
-                    st.error(f"Excluir permanentemente OS {row['external_id']}?")
+                # Confirmação de exclusão (CHAVE ÚNICA)
+                if 'confirm_del' in st.session_state and st.session_state.confirm_del == idx_real:
+                    st.error(f"Excluir permanentemente OS {row.external_id}?")
                     ca1, ca2 = st.columns([1, 8])
-                    if ca1.button("Sim", key=f"conf_del_{row['id']}"):
-                        df_final = df[df['id'] != row['id']]
+                    if ca1.button("Sim", key=f"conf_sim_{idx_real}_{i}"):
+                        # ... lógica de exclusão ...
+                        df_final = df[df['id'] != idx_real]
                         update_full_sheet(SHEET_DENUNCIAS, df_final)
                         del st.session_state.confirm_del
                         st.rerun()
-                    if ca2.button("Não", key=f"cancel_del_{row['id']}"):
+                    if ca2.button("Não", key=f"conf_nao_{idx_real}_{i}"):
                         del st.session_state.confirm_del
                         st.rerun()
 
@@ -662,6 +670,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
