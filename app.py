@@ -246,24 +246,24 @@ def gerar_pdf(dados):
         celula_cinza("INFORMAÇÕES DA FISCALIZAÇÃO")
         
         pdf.set_font("Arial", 'B', 8)
-        pdf.cell(90, 10, clean_text("DATA DA VISTORIA: ____/____/____"), 1, 0, 'L')
-        pdf.cell(0, 10, "HORA: ____:____", 1, 1, 'L')
+        pdf.cell(90, 10, clean_text("DATA DA VISTORIA:            "), 1, 0, 'L')
+        pdf.cell(0, 10, "HORA:             ", 1, 1, 'L')
 
         # Cabeçalho do quadro
         pdf.set_font("Arial", '', 7)
         pdf.cell(0, 5, clean_text("OBSERVAÇÕES E DESCRIÇÃO DA OCORRÊNCIA"), "LR", 1, 'C')
         
         # 1. Espaço superior do quadro (Altura total de 95mm - 30mm da rubrica = 65mm)
-        pdf.cell(0, 65, "", "LR", 1, 'L') 
+        pdf.cell(0, 75, "", "LR", 1, 'L') 
 
         # 2. Linha da Rubrica (posicionada a 3cm do fundo)
-        pdf.set_font("Arial", 'B', 7)
+        pdf.set_font("Arial", 'B', 9)
         # "LR" mantém as bordas laterais abertas para continuar o quadro
-        pdf.cell(0, 5, clean_text("  RUBRICA: __________________________"), "LR", 1, 'L')
+        pdf.cell(0, 5, clean_text("  RUBRICA:                       "), "LR", 1, 'L')
 
         # 3. Espaço inferior final (os últimos 25mm para fechar o quadro)
         # "LRB" coloca a linha de baixo que fecha o quadro
-        pdf.cell(0, 25, "", "LRB", 1, 'L') 
+        pdf.cell(0, 15, "", "LRB", 1, 'L') 
 
         pdf_output = pdf.output(dest='S')
         return bytes(pdf_output) if not isinstance(pdf_output, str) else pdf_output.encode('latin-1')
@@ -667,6 +667,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
