@@ -215,7 +215,7 @@ def gerar_pdf(dados):
 
         # --- CAMPO PONTO DE REFERÊNCIA ---
         pdf.set_font("Arial", 'B', 8)
-        pdf.cell(35, 8, clean_text("PONTO DE REFERÊNCIA:"), 1, 0, 'L')
+        pdf.cell(35, 8, clean_text("PONTO DE REFERÊNCIA: "), 1, 0, 'L')
         pdf.set_font("Arial", '', 8)
         pdf.cell(0, 8, clean_text(dados.get('ponto_referencia', '')), 1, 1, 'L')
 
@@ -246,16 +246,25 @@ def gerar_pdf(dados):
         celula_cinza("INFORMAÇÕES DA FISCALIZAÇÃO")
         
         pdf.set_font("Arial", 'B', 8)
-        pdf.cell(90, 10, "DATA DA VISTORIA: _____/_____/_______", 1, 0, 'L')
-        pdf.cell(0, 10, "HORA: _____:_____", 1, 1, 'L')
+        pdf.cell(90, 10, clean_text("DATA DA VISTORIA: ____/____/____"), 1, 0, 'L')
+        pdf.cell(0, 10, "HORA: ____:____", 1, 1, 'L')
 
+        # Espaço para Observações
         pdf.set_font("Arial", '', 7)
         pdf.cell(0, 5, clean_text("OBSERVAÇÕES E DESCRIÇÃO DA OCORRÊNCIA"), "LR", 1, 'C')
-        pdf.cell(0, 95, "", "LRB", 1, 'L') # Espaço grande para anotações
+        
+        # Reduzi um pouco a altura (de 95 para 85) para caber a rubrica dentro ou logo abaixo
+        pdf.cell(0, 85, "", "LR", 1, 'L') 
+
+        # --- CAMPO DE RUBRICA ---
+        # Criamos uma célula que fecha o quadro anterior e adiciona o traço da rubrica
+        pdf.set_font("Arial", 'B', 7)
+        # "LRB" fecha as laterais e o fundo do quadro de observações
+        pdf.cell(130, 10, "", "LB", 0, 'L') # Espaço vazio à esquerda
+        pdf.cell(60, 10, clean_text("RUBRICA:                 "), "RB", 1, 'R') 
 
         pdf_output = pdf.output(dest='S')
         return bytes(pdf_output) if not isinstance(pdf_output, str) else pdf_output.encode('latin-1')
-
     except Exception as e:
         return str(e)
 # ============================================================
@@ -654,6 +663,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
