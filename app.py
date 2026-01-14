@@ -253,8 +253,6 @@ def gerar_pdf(dados):
         # "LRB" coloca a linha de baixo que fecha o quadro
         pdf.cell(0, 15, "", "LRB", 1, 'L') 
 
-        adicionar_rodape_final(pdf)
-
         pdf_output = pdf.output(dest='S')
         return bytes(pdf_output) if not isinstance(pdf_output, str) else pdf_output.encode('latin-1')
 
@@ -657,6 +655,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
