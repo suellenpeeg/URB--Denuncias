@@ -412,10 +412,39 @@ if page == "Dashboard":
 
         with col_graf1:
             st.subheader("Tipo de Denúncia")
-            # Contagem por Tipo
-            df_tipo = df['tipo'].value_counts().reset_index()
-            df_tipo.columns = ['Tipo', 'Quantidade']
-            st.bar_chart(df_tipo.set_index('Tipo'))
+    
+            # --- LIMPEZA DOS DADOS ---
+            # Criamos uma cópia para não afetar o dataframe original
+             df_tipo_limpo = df.copy()
+    
+            # Padroniza: tudo que for 'Urbana' ou 'Urbano' vira 'Urbano'
+            # Você pode adicionar outras correções aqui se necessário
+            df_tipo_limpo['tipo'] = df_tipo_limpo['tipo'].replace({
+            'Urbana': 'Urbano',
+            'Ambiental': 'Ambiental',
+            'Urbana e Ambiental': 'Urbana e Ambiental'
+         })
+
+    # --- PREPARAÇÃO PARA O GRÁFICO ---
+    contagem_tipo = df_tipo_limpo['tipo'].value_counts().reset_index()
+    contagem_tipo.columns = ['Tipo', 'Quantidade']
+
+    # --- GRÁFICO DE ROSCA (Mais "Bonito" para poucas categorias) ---
+    import plotly.express as px
+    
+    fig_tipo = px.pie(
+        contagem_tipo, 
+        values='Quantidade', 
+        names='Tipo', 
+        hole=0.5, # Cria o efeito de rosca
+        color_discrete_sequence=px.colors.qualitative.Prism # Paleta de cores moderna
+    )
+    
+    # Ajustes de legenda e texto
+    fig_tipo.update_traces(textposition='inside', textinfo='percent+label')
+    fig_tipo.update_layout(showlegend=False, margin=dict(t=0, b=0, l=0, r=0))
+
+    st.plotly_chart(fig_tipo, use_container_width=True)
 
         with col_graf2:
             st.subheader("Fonte da Denúncia (Origem)")
@@ -717,6 +746,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
