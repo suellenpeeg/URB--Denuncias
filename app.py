@@ -90,35 +90,37 @@ def clean_text(text):
 
 def gerar_pdf(dados):
     try:
-        # --- CLASSE PDF INTERNA (CABEÇALHO E RODAPÉ) ---
         class PDF(FPDF):
             def header(self):
-                # Tenta carregar o logo. Se o arquivo 'logo.png' não existir, o PDF não trava.
                 try:
                     self.image('logo.png', x=90, y=8, w=30) 
-                    self.ln(22) # Espaço após o logo
+                    self.ln(22)
                 except:
                     self.ln(5)
-
                 self.set_font('Arial', 'B', 14)
                 self.cell(0, 6, clean_text("Autarquia de Urbanização e Meio Ambiente de Caruaru"), 0, 1, 'C')
                 self.set_font('Arial', 'B', 12)
                 self.cell(0, 6, clean_text("Central de Atendimento"), 0, 1, 'C')
                 self.ln(5)
-            
-            def adicionar_rodape_final(pdf):
-            # Posiciona a 35mm do fim da página para não cortar
-               pdf.set_y(-35)
-    
-            # Linha cinza superior do rodapé
-            pdf.set_fill_color(230, 230, 230)
-            pdf.set_font("Arial", 'B', 8)
-            pdf.cell(0, 8, clean_text("AUTARQUIA DE URBANIZAÇÃO E MEIO AMBIENTE DE CARUARU - URB"), 1, 1, 'C', True)
-    
-            # Endereço e contatos
-            pdf.set_font("Arial", '', 8)
-            pdf.cell(0, 5, clean_text("Rua Visconde de Inhaúma, 1191. Bairro Maurício de Nassau"), "LR", 1, 'C')
-            pdf.cell(0, 5, clean_text("Telefones: (81) 3101-0108  (81) 98384-3216"), "LRB", 1, 'C')
+
+            # Criamos uma função simples para o rodapé final (fora do footer automático)
+            def adicionar_rodape_final(self):
+                self.set_y(-35)
+                self.set_fill_color(230, 230, 230)
+                self.set_font("Arial", 'B', 8)
+                self.cell(0, 8, clean_text("AUTARQUIA DE URBANIZAÇÃO E MEIO AMBIENTE DE CARUARU - URB"), 1, 1, 'C', True)
+                self.set_font("Arial", '', 8)
+                self.cell(0, 5, clean_text("Rua Visconde de Inhaúma, 1191. Bairro Maurício de Nassau"), "LR", 1, 'C')
+                self.cell(0, 5, clean_text("Telefones: (81) 3101-0108  (81) 98384-3216"), "LRB", 1, 'C')
+
+        pdf = PDF()
+        pdf.set_auto_page_break(auto=True, margin=35) # Margem maior para o rodapé
+        pdf.add_page()
+        
+        def celula_cinza(texto):
+            pdf.set_fill_color(220, 220, 220)
+            pdf.set_font("Arial", 'B', 9)
+            pdf.cell(0, 6, clean_text(texto), 1, 1, 'L', fill=True)
 
         # --- INÍCIO DA GERAÇÃO DO PDF ---
         pdf = PDF()
@@ -669,6 +671,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
