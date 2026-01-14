@@ -102,20 +102,6 @@ def gerar_pdf(dados):
                 self.set_font('Arial', 'B', 12)
                 self.cell(0, 6, clean_text("Central de Atendimento"), 0, 1, 'C')
                 self.ln(5)
-
-            # Criamos uma função simples para o rodapé final (fora do footer automático)
-            def adicionar_rodape_final(self):
-                self.set_y(-35)
-                self.set_fill_color(230, 230, 230)
-                self.set_font("Arial", 'B', 8)
-                self.cell(0, 8, clean_text("AUTARQUIA DE URBANIZAÇÃO E MEIO AMBIENTE DE CARUARU - URB"), 1, 1, 'C', True)
-                self.set_font("Arial", '', 8)
-                self.cell(0, 5, clean_text("Rua Visconde de Inhaúma, 1191. Bairro Maurício de Nassau"), "LR", 1, 'C')
-                self.cell(0, 5, clean_text("Telefones: (81) 3101-0108  (81) 98384-3216"), "LRB", 1, 'C')
-
-        pdf = PDF()
-        pdf.set_auto_page_break(auto=True, margin=35) # Margem maior para o rodapé
-        pdf.add_page()
         
         def celula_cinza(texto):
             pdf.set_fill_color(220, 220, 220)
@@ -671,6 +657,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
