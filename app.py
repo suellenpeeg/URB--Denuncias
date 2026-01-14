@@ -241,7 +241,7 @@ def gerar_pdf(dados):
         pdf.set_font("Arial", '', 9)
         pdf.cell(125, 8, clean_text(dados.get('quem_recebeu', '')), 0, 0, 'L')
                 
-        # 5. INFORMAÇÕES DA FISCALIZAÇÃO
+      # 5. INFORMAÇÕES DA FISCALIZAÇÃO
         pdf.set_xy(10, y_sig + 22)
         celula_cinza("INFORMAÇÕES DA FISCALIZAÇÃO")
         
@@ -249,22 +249,26 @@ def gerar_pdf(dados):
         pdf.cell(90, 10, clean_text("DATA DA VISTORIA: ____/____/____"), 1, 0, 'L')
         pdf.cell(0, 10, "HORA: ____:____", 1, 1, 'L')
 
-        # Espaço para Observações
+        # Cabeçalho do quadro
         pdf.set_font("Arial", '', 7)
         pdf.cell(0, 5, clean_text("OBSERVAÇÕES E DESCRIÇÃO DA OCORRÊNCIA"), "LR", 1, 'C')
         
-        # Reduzi um pouco a altura (de 95 para 85) para caber a rubrica dentro ou logo abaixo
-        pdf.cell(0, 85, "", "LR", 1, 'L') 
+        # 1. Espaço superior do quadro (Altura total de 95mm - 30mm da rubrica = 65mm)
+        pdf.cell(0, 65, "", "LR", 1, 'L') 
 
-        # --- CAMPO DE RUBRICA ---
-        # Criamos uma célula que fecha o quadro anterior e adiciona o traço da rubrica
+        # 2. Linha da Rubrica (posicionada a 3cm do fundo)
         pdf.set_font("Arial", 'B', 7)
-        # "LRB" fecha as laterais e o fundo do quadro de observações
-        pdf.cell(130, 10, "", "LB", 0, 'L') # Espaço vazio à esquerda
-        pdf.cell(60, 10, clean_text("RUBRICA:                 "), "RB", 1, 'R') 
+        # "LR" mantém as bordas laterais abertas para continuar o quadro
+        pdf.cell(0, 5, clean_text("  RUBRICA: __________________________"), "LR", 1, 'L')
+
+        # 3. Espaço inferior final (os últimos 25mm para fechar o quadro)
+        # "LRB" coloca a linha de baixo que fecha o quadro
+        pdf.cell(0, 25, "", "LRB", 1, 'L') 
 
         pdf_output = pdf.output(dest='S')
         return bytes(pdf_output) if not isinstance(pdf_output, str) else pdf_output.encode('latin-1')
+
+
     except Exception as e:
         return str(e)
 # ============================================================
@@ -663,6 +667,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
