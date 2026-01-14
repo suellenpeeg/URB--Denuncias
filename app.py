@@ -602,10 +602,10 @@ elif page == "Histórico / Editar":
                     c_pdf.markdown("<br>", unsafe_allow_html=True)
                     chave_unica = f"pdf_btn_{row['id']}_{i}_{row['external_id'].replace('/', '_')}"
                     c_pdf.download_button(
-                        label="📄"
-                        data=res_pdf
-                        file_name=f"OS_{row['external_id'].replace('/', '_')}.pdf"
-                        mime="application/pdf"
+                        label="📄",
+                        data=res_pdf,
+                        file_name=f"OS_{row['external_id'].replace('/', '_')}.pdf",
+                        mime="application/pdf",
                         key=chave_unica
                     )
                 
@@ -662,6 +662,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
