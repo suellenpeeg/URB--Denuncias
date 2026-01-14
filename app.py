@@ -77,8 +77,6 @@ def clean_text(text):
     # Converte para string e remove caracteres que o Latin-1 não suporta
     text = str(text).replace("–", "-").replace("“", '"').replace("”", '"').replace("’", "'")
     return text.encode('latin-1', 'replace').decode('latin-1')
-    pdf.set_auto_page_break(auto=True, margin=15) # Margem de 15mm no fundo
-    pdf.add_page()
 
 from fpdf import FPDF
 import pandas as pd
@@ -178,11 +176,13 @@ def gerar_pdf(dados):
         pdf.set_font("Arial", '', 9)
         pdf.cell(0, 8, clean_text(dados.get('zona', '')), 1, 1, 'C')
 
-        # 2. DESCRIÇÃO
-        celula_cinza("DESCRIÇÃO DA ORDEM DE SERVIÇO")
-        pdf.set_font("Arial", '', 9)
-        pdf.multi_cell(0, 5, clean_text(dados.get('descricao', '')), 1, 'L')
-        pdf.set_x(10)
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(0, 5, "DESCRICAO DA DENUNCIA (SISTEMA):", 0, 1, 'L')
+        pdf.set_font("Arial", '', 8)
+        
+        # O multi_cell permite que a descrição cresça e quebre a página se necessário
+        texto_denuncia = clean_text(str(dados.get('descricao', '')))
+        pdf.multi_cell(0, 5, texto_denuncia, 0, 'L')
         
         # 3. ENDEREÇO, GEOLOCALIZAÇÃO E PONTO DE REFERÊNCIA
         pdf.set_font("Arial", 'B', 8)
@@ -669,6 +669,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
