@@ -600,7 +600,14 @@ elif page == "Histórico / Editar":
                 res_pdf = gerar_pdf(row)
                 if isinstance(res_pdf, bytes):
                     c_pdf.markdown("<br>", unsafe_allow_html=True)
-                    c_pdf.download_button("📄", res_pdf, f"OS_{row['external_id']}.pdf", "application/pdf", key=f"pdf_btn_{row['id']}")
+                    chave_unica = f"pdf_btn_{row['id']}_{i}_{row['external_id'].replace('/', '_')}"
+                    c_pdf.download_button(
+                        label="📄"
+                        data=res_pdf
+                        file_name=f"OS_{row['external_id'].replace('/', '_')}.pdf"
+                        mime="application/pdf"
+                        key=chave_unica
+                    )
                 
                 c_edit.markdown("<br>", unsafe_allow_html=True)
                 if c_edit.button("✏️", key=f"ed_btn_{row['id']}"):
