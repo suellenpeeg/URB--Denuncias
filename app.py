@@ -80,6 +80,8 @@ def clean_text(text):
 
 from fpdf import FPDF
 import pandas as pd
+pdf.set_auto_page_break(auto=True, margin=15) # Margem de 15mm no fundo
+pdf.add_page()
 
 def clean_text(text):
     """Limpa o texto para evitar erros de codificação no PDF."""
@@ -667,6 +669,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
