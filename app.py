@@ -581,7 +581,6 @@ elif page == "Histórico / Editar":
             st.markdown("---")
 
         # --- LISTAGEM ÚNICA DE CARDS ---
-        s# --- LISTAGEM ÚNICA DE CARDS ---
         st.write(f"Exibindo **{len(df_filtrado)}** registros")
         df_filtrado = df_filtrado.sort_values(by='id', ascending=False)
 
@@ -670,6 +669,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
