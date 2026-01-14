@@ -407,57 +407,69 @@ if page == "Dashboard":
 
         st.divider()
 
+        # --- GRÁFICOS: LINHA 1 (TIPO E FONTE) ---
+        col_graf1, col_graf2 = st.columns(2) # Define as colunas aqui
+
         with col_graf1:
             st.subheader("Tipo de Denúncia")
-    
-    # 1. Padronização dos Nomes (Limpeza)
-    df_tipo = df.copy()
-    df_tipo['tipo'] = df_tipo['tipo'].replace({
-        'Urbana': 'Urbano', 
-        'urbano': 'Urbano',
-        'urbana': 'Urbano'
-    })
+            
+            # 1. Padronização dos Nomes (Limpeza) dentro do bloco identado
+            df_tipo = df.copy()
+            df_tipo['tipo'] = df_tipo['tipo'].replace({
+                'Urbana': 'Urbano', 
+                'urbano': 'Urbano',
+                'urbana': 'Urbano'
+            })
 
-    # 2. Contagem
-    contagem = df_tipo['tipo'].value_counts().reset_index()
-    contagem.columns = ['Tipo', 'Qtd']
+            # 2. Contagem
+            contagem = df_tipo['tipo'].value_counts().reset_index()
+            contagem.columns = ['Tipo', 'Qtd']
 
-    # 3. Gráfico de Rosca (Donut)
-    import plotly.express as px
-    fig = px.pie(
-        contagem, 
-        values='Qtd', 
-        names='Tipo', 
-        hole=0.5, # Define o buraco no meio
-        color_discrete_sequence=px.colors.qualitative.Safe
-    )
-    
-    # Estética: Remove legenda se os nomes couberem no gráfico
-    fig.update_traces(textposition='inside', textinfo='percent+label')
-    fig.update_layout(margin=dict(t=30, b=0, l=0, r=0), showlegend=False)
-    
-    st.plotly_chart(fig, use_container_width=True)
+            # 3. Gráfico de Rosca (Donut)
+            import plotly.express as px
+            fig = px.pie(
+                contagem, 
+                values='Qtd', 
+                names='Tipo', 
+                hole=0.5,
+                color_discrete_sequence=px.colors.qualitative.Safe
+            )
+            
+            fig.update_traces(textposition='inside', textinfo='percent+label')
+            fig.update_layout(margin=dict(t=30, b=0, l=0, r=0), showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col_graf2:
+            st.subheader("Fonte da Denúncia")
+            df_origem = df['origem'].value_counts().reset_index()
+            df_origem.columns = ['Fonte', 'Total']
+            fig_origem = px.bar(df_origem, x='Total', y='Fonte', orientation='h', text_auto=True)
+            fig_origem.update_layout(margin=dict(t=30, b=0, l=0, r=0))
+            st.plotly_chart(fig_origem, use_container_width=True)
+
+        st.divider()
 
         # --- GRÁFICOS: LINHA 2 (RANKINGS) ---
-    col_rank1, col_rank2 = st.columns(2)
+        col_rank1, col_rank2 = st.columns(2)
 
         with col_rank1:
             st.subheader("🏆 Ranking por Bairro")
-            # Top 10 Bairros
             df_bairro = df['bairro'].value_counts().nlargest(10).reset_index()
             df_bairro.columns = ['Bairro', 'Total']
             fig_bairro = px.bar(df_bairro, x='Total', y='Bairro', orientation='h',
-                                 text='Total', color='Total', color_continuous_scale='Blues')
-            fig_bairro.update_layout(yaxis={'categoryorder':'total ascending'})
+                               text='Total', color='Total', color_continuous_scale='Blues')
+            fig_bairro.update_layout(yaxis={'categoryorder':'total ascending'}, showlegend=False)
             st.plotly_chart(fig_bairro, use_container_width=True)
 
         with col_rank2:
             st.subheader("📍 Denúncias por Zona")
             df_zona = df['zona'].value_counts().reset_index()
             df_zona.columns = ['Zona', 'Total']
-            fig_zona = px.bar(df_zona, x='Zona', y='Total', color='Zona',
-                               text_auto=True)
+            fig_zona = px.bar(df_zona, x='Zona', y='Total', color='Zona', text_auto=True)
+            fig_zona.update_layout(showlegend=False)
             st.plotly_chart(fig_zona, use_container_width=True)
+
+        st.divider()
 
         # --- TABELA RECENTE ---
         st.subheader("📅 Últimas Ocorrências")
@@ -465,7 +477,6 @@ if page == "Dashboard":
 
     else:
         st.info("Nenhuma denúncia encontrada para gerar estatísticas.")
-
 # ============================================================
 # ALTERAÇÃO 3: PÁGINA DE REGISTRO
 # ============================================================
@@ -745,6 +756,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
