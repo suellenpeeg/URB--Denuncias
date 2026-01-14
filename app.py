@@ -193,15 +193,25 @@ def gerar_pdf(dados):
         pdf.set_font("Arial", '', 9)
         pdf.cell(0, 8, clean_text(dados.get('numero', '')), "RB", 1, 'L')
 
-        # --- CAMPO GEOLOCALIZAÇÃO ---
+       # --- CAMPO GEOLOCALIZAÇÃO E LINK MAPS ---
         lat = str(dados.get('latitude', ''))
         lon = str(dados.get('longitude', ''))
+        link = str(dados.get('link_maps', '')) # Puxa o link do banco de dados
+        
         geo_texto = f"Lat: {lat} | Lon: {lon}" if lat and lon else "Não informada"
 
         pdf.set_font("Arial", 'B', 8)
         pdf.cell(35, 8, clean_text("GEOLOCALIZAÇÃO:"), 1, 0, 'L')
         pdf.set_font("Arial", '', 8)
         pdf.cell(0, 8, clean_text(geo_texto), 1, 1, 'L')
+
+        if link:
+            pdf.set_font("Arial", 'B', 8)
+            pdf.cell(35, 8, "LINK MAPS:", 1, 0, 'L')
+            pdf.set_font("Arial", '', 7)
+            pdf.set_text_color(0, 0, 255) # Azul para parecer link
+            pdf.cell(0, 8, clean_text(link), 1, 1, 'L', link=link)
+            pdf.set_text_color(0, 0, 0) # Volta para preto
 
         # --- CAMPO PONTO DE REFERÊNCIA ---
         pdf.set_font("Arial", 'B', 8)
@@ -406,6 +416,9 @@ elif page == "Registrar Denúncia":
         c1, c2 = st.columns(2)
         origem = c1.selectbox('Origem', OPCOES_ORIGEM)
         tipo = c2.selectbox('Tipo', OPCOES_TIPO)
+        
+        if 'salvando_denuncia' not in st.session_state:
+            st.session_state.salvando_denuncia = False
         
         # Endereço
         rua = st.text_input('Rua')
@@ -685,6 +698,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
