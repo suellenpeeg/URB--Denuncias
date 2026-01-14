@@ -392,21 +392,68 @@ if st.sidebar.button("Sair"):
 # PÁGINA 1: DASHBOARD
 # ============================================================
 if page == "Dashboard":
-    st.title("📊 Visão Geral")
+    st.title("📊 Visão Geral da Fiscalização")
     df = load_data(SHEET_DENUNCIAS)
     
-    if not df.empty and 'status' in df.columns:
-        df['status'] = df['status'].replace('FALSE', 'Pendente').replace('False', 'Pendente')
+    if not df.empty:
+        # --- MÉTRICAS PRINCIPAIS ---
+        df['status'] = df['status'].replace({'FALSE': 'Pendente', 'False': 'Pendente'})
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total", len(df))
+        c1.metric("Total de Denúncias", len(df))
         c2.metric("Pendentes", len(df[df['status'] == 'Pendente']))
-        c3.metric("Em Andamento", len(df[df['status'] == 'Em Andamento']))
+        c3.metric("Em Andamento", len(df[df['status'] == 'Em Monitoramento']))
         c4.metric("Concluídas", len(df[df['status'] == 'Concluída']))
-        
-        st.subheader("Últimas Ocorrências")
-        st.dataframe(df.tail(5)[['external_id','bairro','status']], use_container_width=True)
+
+        st.divider()
+
+        # --- GRÁFICOS: LINHA 1 ---
+        col_graf1, col_graf2 = st.columns(2)
+
+        with col_graf1:
+            st.subheader("Tipo de Denúncia")
+            # Contagem por Tipo
+            df_tipo = df['tipo'].value_counts().reset_index()
+            df_tipo.columns = ['Tipo', 'Quantidade']
+            st.bar_chart(df_tipo.set_index('Tipo'))
+
+        with col_graf2:
+            st.subheader("Fonte da Denúncia (Origem)")
+            df_origem = df['origem'].value_counts()
+            # Gráfico de pizza nativo do Streamlit ou Plotly
+            import plotly.express as px
+            fig_origem = px.pie(df_origem, values=df_origem.values, names=df_origem.index, 
+                                hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+            st.plotly_chart(fig_origem, use_container_width=True)
+
+        st.divider()
+
+        # --- GRÁFICOS: LINHA 2 (RANKINGS) ---
+        col_rank1, col_rank2 = st.columns(2)
+
+        with col_rank1:
+            st.subheader("🏆 Ranking por Bairro")
+            # Top 10 Bairros
+            df_bairro = df['bairro'].value_counts().nlargest(10).reset_index()
+            df_bairro.columns = ['Bairro', 'Total']
+            fig_bairro = px.bar(df_bairro, x='Total', y='Bairro', orientation='h',
+                                 text='Total', color='Total', color_continuous_scale='Blues')
+            fig_bairro.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig_bairro, use_container_width=True)
+
+        with col_rank2:
+            st.subheader("📍 Denúncias por Zona")
+            df_zona = df['zona'].value_counts().reset_index()
+            df_zona.columns = ['Zona', 'Total']
+            fig_zona = px.bar(df_zona, x='Zona', y='Total', color='Zona',
+                               text_auto=True)
+            st.plotly_chart(fig_zona, use_container_width=True)
+
+        # --- TABELA RECENTE ---
+        st.subheader("📅 Últimas Ocorrências")
+        st.dataframe(df.tail(10)[['external_id', 'bairro', 'status', 'created_at']], use_container_width=True)
+
     else:
-        st.info("Sem dados.")
+        st.info("Nenhuma denúncia encontrada para gerar estatísticas.")
 
 # ============================================================
 # ALTERAÇÃO 3: PÁGINA DE REGISTRO
@@ -669,6 +716,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
