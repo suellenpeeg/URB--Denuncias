@@ -263,7 +263,7 @@ def gerar_pdf(dados):
 
         # 3. Espaço inferior final (os últimos 25mm para fechar o quadro)
         # "LRB" coloca a linha de baixo que fecha o quadro
-     pdf.cell(0, 15, "", "LRB", 1, 'L') 
+        pdf.cell(0, 15, "", "LRB", 1, 'L') 
 
         adicionar_rodape_final(pdf)
 
@@ -669,6 +669,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
