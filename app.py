@@ -415,7 +415,7 @@ if page == "Dashboard":
     
             # --- LIMPEZA DOS DADOS ---
             # Criamos uma cópia para não afetar o dataframe original
-             df_tipo_limpo = df.copy()
+            df_tipo_limpo = df.copy()
     
             # Padroniza: tudo que for 'Urbana' ou 'Urbano' vira 'Urbano'
             # Você pode adicionar outras correções aqui se necessário
@@ -746,6 +746,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
