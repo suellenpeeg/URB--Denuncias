@@ -407,55 +407,36 @@ if page == "Dashboard":
 
         st.divider()
 
-        # --- GRÁFICOS: LINHA 1 ---
-        col_graf1, col_graf2 = st.columns(2)
-
         with col_graf1:
-            st.subheader("Tipo de Denúncia")
+    st.subheader("Tipo de Denúncia")
     
-            # --- LIMPEZA DOS DADOS ---
-            # Criamos uma cópia para não afetar o dataframe original
-            df_tipo_limpo = df.copy()
-    
-            # Padroniza: tudo que for 'Urbana' ou 'Urbano' vira 'Urbano'
-            # Você pode adicionar outras correções aqui se necessário
-            df_tipo_limpo['tipo'] = df_tipo_limpo['tipo'].replace({
-            'Urbana': 'Urbano',
-            'Ambiental': 'Ambiental',
-            'Urbana e Ambiental': 'Urbana e Ambiental'
-         })
+    # 1. Padronização dos Nomes (Limpeza)
+    df_tipo = df.copy()
+    df_tipo['tipo'] = df_tipo['tipo'].replace({
+        'Urbana': 'Urbano', 
+        'urbano': 'Urbano',
+        'urbana': 'Urbano'
+    })
 
-    # --- PREPARAÇÃO PARA O GRÁFICO ---
-    contagem_tipo = df_tipo_limpo['tipo'].value_counts().reset_index()
-    contagem_tipo.columns = ['Tipo', 'Quantidade']
+    # 2. Contagem
+    contagem = df_tipo['tipo'].value_counts().reset_index()
+    contagem.columns = ['Tipo', 'Qtd']
 
-    # --- GRÁFICO DE ROSCA (Mais "Bonito" para poucas categorias) ---
+    # 3. Gráfico de Rosca (Donut)
     import plotly.express as px
-    
-    fig_tipo = px.pie(
-        contagem_tipo, 
-        values='Quantidade', 
+    fig = px.pie(
+        contagem, 
+        values='Qtd', 
         names='Tipo', 
-        hole=0.5, # Cria o efeito de rosca
-        color_discrete_sequence=px.colors.qualitative.Prism # Paleta de cores moderna
+        hole=0.5, # Define o buraco no meio
+        color_discrete_sequence=px.colors.qualitative.Safe
     )
     
-    # Ajustes de legenda e texto
-    fig_tipo.update_traces(textposition='inside', textinfo='percent+label')
-    fig_tipo.update_layout(showlegend=False, margin=dict(t=0, b=0, l=0, r=0))
-
-    st.plotly_chart(fig_tipo, use_container_width=True)
-
-        with col_graf2:
-            st.subheader("Fonte da Denúncia (Origem)")
-            df_origem = df['origem'].value_counts()
-            # Gráfico de pizza nativo do Streamlit ou Plotly
-            import plotly.express as px
-            fig_origem = px.pie(df_origem, values=df_origem.values, names=df_origem.index, 
-                                hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-            st.plotly_chart(fig_origem, use_container_width=True)
-
-        st.divider()
+    # Estética: Remove legenda se os nomes couberem no gráfico
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    fig.update_layout(margin=dict(t=30, b=0, l=0, r=0), showlegend=False)
+    
+    st.plotly_chart(fig, use_container_width=True)
 
         # --- GRÁFICOS: LINHA 2 (RANKINGS) ---
         col_rank1, col_rank2 = st.columns(2)
@@ -535,22 +516,40 @@ elif page == "Registrar Denúncia":
             else:
                 st.session_state.processando_registro = True
                 with st.spinner('Gravando dados...'):
+                    # 1. Carrega os dados mais recentes
                     df = load_data(SHEET_DENUNCIAS)
-                    new_id = len(df) + 1
+                    
+                    # 2. Lógica Segura de ID: Pega o maior valor e soma 1
+                    if not df.empty:
+                        # Converte a coluna id para numérico caso venha como texto da planilha
+                        ids_existentes = pd.to_numeric(df['id'], errors='coerce').dropna()
+                        new_id = int(ids_existentes.max() + 1) if not ids_existentes.empty else 1
+                    else:
+                        new_id = 1
+                    
+                    # 3. Gera o ID Externo formatado (ex: 0041/2026)
                     ext_id = f"{new_id:04d}/{datetime.now().year}"
                     agora_br = datetime.now(FUSO_BR).strftime('%Y-%m-%d %H:%M:%S')
                     
+                    # 4. Monta o registro
                     record = {
                         'id': new_id, 
                         'external_id': ext_id, 
                         'created_at': agora_br,
-                        'origem': origem, 'tipo': tipo, 'rua': rua, 
-                        'numero': numero, 'bairro': bairro, 'zona': zona, 
-                        'latitude': latitude, 'longitude': longitude,
+                        'origem': origem, 
+                        'tipo': tipo, 
+                        'rua': rua, 
+                        'numero': numero, 
+                        'bairro': bairro, 
+                        'zona': zona, 
+                        'latitude': latitude, 
+                        'longitude': longitude,
                         'ponto_referencia': ponto_ref,
-                        'link_maps': link_google, # Agora o link gerado é salvo
-                        'descricao': desc, 'quem_recebeu': quem, 
-                        'status': 'Pendente', 'acao_noturna': 'FALSE'
+                        'link_maps': link_google,
+                        'descricao': desc, 
+                        'quem_recebeu': quem, 
+                        'status': 'Pendente', 
+                        'acao_noturna': 'FALSE'
                     }
                     
                     salvar_dados_seguro(SHEET_DENUNCIAS, record)
@@ -746,6 +745,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
