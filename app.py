@@ -77,11 +77,11 @@ def clean_text(text):
     # Converte para string e remove caracteres que o Latin-1 não suporta
     text = str(text).replace("–", "-").replace("“", '"').replace("”", '"').replace("’", "'")
     return text.encode('latin-1', 'replace').decode('latin-1')
+    pdf.set_auto_page_break(auto=True, margin=15) # Margem de 15mm no fundo
+    pdf.add_page()
 
 from fpdf import FPDF
 import pandas as pd
-pdf.set_auto_page_break(auto=True, margin=15) # Margem de 15mm no fundo
-pdf.add_page()
 
 def clean_text(text):
     """Limpa o texto para evitar erros de codificação no PDF."""
@@ -669,6 +669,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
