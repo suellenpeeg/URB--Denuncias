@@ -106,18 +106,19 @@ def gerar_pdf(dados):
                 self.cell(0, 6, clean_text("Central de Atendimento"), 0, 1, 'C')
                 self.ln(5)
             
-            def footer(self):
-                # Posiciona a 2.2 cm do fim da página
-                self.set_y(-22)
-                self.set_font('Arial', 'B', 9)
-                self.set_fill_color(220, 220, 220) # Cinza claro
-                
-                texto = (
-                    "AUTARQUIA DE URBANIZAÇÃO E MEIO AMBIENTE DE CARUARU - URB\n"
-                    "Rua Visconde de Inhaúma, 1191. Bairro Maurício de Nassau\n"
-                    "Telefones: (81) 3101-0108   (81) 98384-3216"
-                )
-                self.multi_cell(0, 4, clean_text(texto), 1, 'C', fill=True)
+            def adicionar_rodape_final(pdf):
+            # Posiciona a 35mm do fim da página para não cortar
+            pdf.set_y(-35)
+    
+            # Linha cinza superior do rodapé
+            pdf.set_fill_color(230, 230, 230)
+            pdf.set_font("Arial", 'B', 8)
+            pdf.cell(0, 8, clean_text("AUTARQUIA DE URBANIZAÇÃO E MEIO AMBIENTE DE CARUARU - URB"), 1, 1, 'C', True)
+    
+            # Endereço e contatos
+            pdf.set_font("Arial", '', 8)
+            pdf.cell(0, 5, clean_text("Rua Visconde de Inhaúma, 1191. Bairro Maurício de Nassau"), "LR", 1, 'C')
+            pdf.cell(0, 5, clean_text("Telefones: (81) 3101-0108  (81) 98384-3216"), "LRB", 1, 'C')
 
         # --- INÍCIO DA GERAÇÃO DO PDF ---
         pdf = PDF()
@@ -666,6 +667,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
