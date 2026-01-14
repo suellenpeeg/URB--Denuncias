@@ -439,7 +439,7 @@ if page == "Dashboard":
     st.plotly_chart(fig, use_container_width=True)
 
         # --- GRÁFICOS: LINHA 2 (RANKINGS) ---
-        col_rank1, col_rank2 = st.columns(2)
+    col_rank1, col_rank2 = st.columns(2)
 
         with col_rank1:
             st.subheader("🏆 Ranking por Bairro")
@@ -745,6 +745,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
