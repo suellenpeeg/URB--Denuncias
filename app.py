@@ -198,7 +198,7 @@ def gerar_pdf(dados):
         lon = str(dados.get('longitude', ''))
         link = str(dados.get('link_maps', '')) # Puxa o link do banco de dados
         
-        geo_texto = f"Lat: {lat} | Lon: {lon}" if lat and lon else "Não informada"
+        geo_texto = f"Lat e Lot: {lat} , {lon}" if lat and lon else "Não informada"
 
         pdf.set_font("Arial", 'B', 8)
         pdf.cell(35, 8, clean_text("GEOLOCALIZAÇÃO:"), 1, 0, 'L')
@@ -569,48 +569,6 @@ elif page == "Histórico / Editar":
                         del st.session_state.edit_id
                         st.rerun()
             st.markdown("---")
-
-        # --- LISTAGEM DOS CARDS ---
-        st.write(f"Exibindo **{len(df_filtrado)}** registros")
-        df_filtrado = df_filtrado.sort_values(by='id', ascending=False)
-
-        for _, row in df_filtrado.iterrows():
-            with st.container(border=True):
-                c_info, c_status, c_pdf, c_edit, c_del = st.columns([3, 1, 0.5, 0.5, 0.5])
-                
-                c_info.markdown(f"### OS {row['external_id']}")
-                c_info.write(f"📍 **{row['rua']}**, {row['numero']} - {row['bairro']} ({row['zona']})")
-                
-                st_val = str(row['status'])
-                clr = "orange" if st_val == "Pendente" else "green" if st_val == "Concluída" else "blue"
-                c_status.markdown(f"<br>:{clr}[**{st_val.upper()}**]", unsafe_allow_html=True)
-                
-                res_pdf = gerar_pdf(row)
-                if isinstance(res_pdf, bytes):
-                    c_pdf.markdown("<br>", unsafe_allow_html=True)
-                    c_pdf.download_button("📄", res_pdf, f"OS_{row['external_id']}.pdf", "application/pdf", key=f"pdf_{row['id']}")
-                
-                c_edit.markdown("<br>", unsafe_allow_html=True)
-                if c_edit.button("✏️", key=f"ed_{row['id']}"):
-                    st.session_state.edit_id = row['id']
-                    st.rerun()
-                    
-                c_del.markdown("<br>", unsafe_allow_html=True)
-                if c_del.button("🗑️", key=f"del_{row['id']}"):
-                    st.session_state.confirm_del = row['id']
-
-                # Confirmação de exclusão
-                if 'confirm_del' in st.session_state and st.session_state.confirm_del == row['id']:
-                    st.error(f"Excluir OS {row['external_id']}?")
-                    ca1, ca2 = st.columns([1, 8])
-                    if ca1.button("Sim", key=f"conf_{row['id']}"):
-                        df_final = df[df['id'] != row['id']]
-                        update_full_sheet(SHEET_DENUNCIAS, df_final)
-                        del st.session_state.confirm_del
-                        st.rerun()
-                    if ca2.button("Não", key=f"back_{row['id']}"):
-                        del st.session_state.confirm_del
-                        st.rerun()
                         
     # --- LISTAGEM DE CARDS ---
     st.write(f"Exibindo **{len(df_filtrado)}** registros")
@@ -697,6 +655,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
