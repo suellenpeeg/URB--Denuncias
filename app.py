@@ -412,75 +412,74 @@ if page == "Dashboard":
 # ============================================================
 elif page == "Registrar Denúncia":
     st.title("📝 Nova Denúncia")
+    
+    # Inicializa o estado de trava
+    if 'processando_registro' not in st.session_state:
+        st.session_state.processando_registro = False
+
     with st.form('reg'):
         c1, c2 = st.columns(2)
         origem = c1.selectbox('Origem', OPCOES_ORIGEM)
         tipo = c2.selectbox('Tipo', OPCOES_TIPO)
         
-        if 'salvando_denuncia' not in st.session_state:
-            st.session_state.salvando_denuncia = False
-        
-        # Endereço
         rua = st.text_input('Rua')
         c3, c4, c5 = st.columns(3)
         numero = c3.text_input('Número')
         bairro = c4.text_input('Bairro')
         zona = c5.selectbox('Zona', OPCOES_ZONA)
         
-        # --- NOVO: Geolocalização e Referência ---
         st.markdown("---")
         st.markdown("**📍 Localização e Referência**")
         col_lat, col_lon = st.columns(2)
         latitude = col_lat.text_input('Latitude (Ex: -8.2828)')
         longitude = col_lon.text_input('Longitude (Ex: -35.9701)')
-        
         ponto_ref = st.text_input('Ponto de Referência')
-        
-        # Lógica visual para mostrar o link gerado (apenas informativo na tela)
+
+        # Lógica do Link: Aparece assim que os campos são preenchidos
         link_google = ""
         if latitude and longitude:
             link_google = f"https://www.google.com/maps?q={latitude},{longitude}"
-            st.caption(f"Link gerado: {link_google}")
-        # ------------------------------------------
-
+            st.info(f"🔗 **Link Visualizado:** {link_google}")
+        
         st.markdown("---")
         desc = st.text_area('Descrição da Ocorrência')
         quem = st.selectbox('Quem recebeu', OPCOES_FISCAIS_SELECT)
         
-        if st.form_submit_button('💾 Salvar'):
+        # Botão com trava dinâmica
+        btn_submit = st.form_submit_button(
+            '💾 Salvar Denúncia', 
+            disabled=st.session_state.processando_registro
+        )
+        
+        if btn_submit:
             if not rua:
-                st.error("Rua obrigatória.")
+                st.error("O campo 'Rua' é obrigatório.")
             else:
-                df = load_data(SHEET_DENUNCIAS)
-                new_id = len(df) + 1
-                ext_id = f"{new_id:04d}/{datetime.now().year}"
-                agora_br = datetime.now(FUSO_BR).strftime('%Y-%m-%d %H:%M:%S')
-                
-                # Atualizando o dicionário com os novos campos
-                record = {
-                    'id': new_id, 
-                    'external_id': ext_id, 
-                    'created_at': agora_br,
-                    'origem': origem, 
-                    'tipo': tipo, 
-                    'rua': rua, 
-                    'numero': numero,
-                    'bairro': bairro, 
-                    'zona': zona, 
-                    'latitude': latitude,      # Salva o input
-                    'longitude': longitude,    # Salva o input
-                    'ponto_referencia': ponto_ref, # Salva o input
-                    'link_maps': link_google,  # Salva o link gerado
-                    'descricao': desc, 
-                    'quem_recebeu': quem, 
-                    'status': 'Pendente',
-                    'acao_noturna': 'FALSE'
-                }
-                
-                salvar_dados_seguro(SHEET_DENUNCIAS, record)
-                st.success(f"Denúncia {ext_id} salva com sucesso!")
-                time.sleep(1)
-                st.rerun()
+                st.session_state.processando_registro = True
+                with st.spinner('Gravando dados...'):
+                    df = load_data(SHEET_DENUNCIAS)
+                    new_id = len(df) + 1
+                    ext_id = f"{new_id:04d}/{datetime.now().year}"
+                    agora_br = datetime.now(FUSO_BR).strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    record = {
+                        'id': new_id, 
+                        'external_id': ext_id, 
+                        'created_at': agora_br,
+                        'origem': origem, 'tipo': tipo, 'rua': rua, 
+                        'numero': numero, 'bairro': bairro, 'zona': zona, 
+                        'latitude': latitude, 'longitude': longitude,
+                        'ponto_referencia': ponto_ref,
+                        'link_maps': link_google, # Agora o link gerado é salvo
+                        'descricao': desc, 'quem_recebeu': quem, 
+                        'status': 'Pendente', 'acao_noturna': 'FALSE'
+                    }
+                    
+                    salvar_dados_seguro(SHEET_DENUNCIAS, record)
+                    st.success(f"Denúncia {ext_id} salva!")
+                    st.session_state.processando_registro = False
+                    time.sleep(1)
+                    st.rerun()
 
 # ============================================================
 # PÁGINA 3: HISTÓRICO / GERENCIAMENTO
@@ -698,6 +697,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
