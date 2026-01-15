@@ -307,6 +307,22 @@ def update_full_sheet(sheet_name, df):
     df_clean = df.fillna('')
     ws.update([df_clean.columns.tolist()] + df_clean.values.tolist())
 
+def gerar_novo_id():
+    ws = get_worksheet("config")
+
+    # Garante cabeçalho
+    if not ws.row_values(1):
+        ws.append_row(["ultimo_id"])
+        ws.append_row([0])
+
+    valor_atual = ws.acell("A2").value
+    ultimo_id = int(valor_atual) if valor_atual else 0
+
+    novo_id = ultimo_id + 1
+    ws.update("A2", novo_id)
+
+    return novo_id
+
 # ============================================================
 # AUTENTICAÇÃO
 # ============================================================
@@ -531,12 +547,7 @@ elif page == "Registrar Denúncia":
                     df = load_data(SHEET_DENUNCIAS)
                     
                     # 2. Lógica Segura de ID: Pega o maior valor e soma 1
-                    if not df.empty:
-                        # Converte a coluna id para numérico caso venha como texto da planilha
-                        ids_existentes = pd.to_numeric(df['id'], errors='coerce').dropna()
-                        new_id = int(ids_existentes.max() + 1) if not ids_existentes.empty else 1
-                    else:
-                        new_id = 1
+                    new_id = gerar_novo_id()
                     
                     # 3. Gera o ID Externo formatado (ex: 0041/2026)
                     ext_id = f"{new_id:04d}/{datetime.now().year}"
@@ -756,6 +767,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
