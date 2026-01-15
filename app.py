@@ -315,11 +315,11 @@ def gerar_novo_id():
         ws.append_row(["ultimo_id"])
         ws.append_row([0])
 
-    valor_atual = ws.acell("A2").value
+    valor_atual = ws.acell("A1").value
     ultimo_id = int(valor_atual) if valor_atual else 0
 
     novo_id = ultimo_id + 1
-    ws.update("A1", novo_id)
+    ws.update("A1", [[novo_id]])
 
     return novo_id
 
@@ -767,6 +767,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
