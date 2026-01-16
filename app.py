@@ -503,11 +503,24 @@ elif page == "Registrar Denúncia":
     if 'processando_registro' not in st.session_state:
         st.session_state.processando_registro = False
 
+    # --- MUDANÇA 1: Campos de controle FORA do form para permitir interatividade ---
+    # Definimos quais origens exigem o número
+    ORIGENS_EXTERNAS = ["Ouvidoria", "Ministério Público", "Disk Denúncia"] # Verifique se a grafia bate com sua lista OPCOES_ORIGEM
+
+    c1, c2 = st.columns(2)
+    # Como está fora do form, ao mudar a opção, o script roda e mostra o campo novo
+    origem = c1.selectbox('Origem', OPCOES_ORIGEM) 
+    tipo = c2.selectbox('Tipo', OPCOES_TIPO)
+    
+    # Lógica Condicional: O campo só aparece se a origem estiver na lista
+    num_encaminhamento = ""
+    if origem in ORIGENS_EXTERNAS:
+        st.info(f"Preencha o número do protocolo vindo do(a) {origem}")
+        num_encaminhamento = st.text_input('Nº do Encaminhamento / Protocolo')
+    # -------------------------------------------------------------------------------
+
     with st.form('reg'):
-        c1, c2 = st.columns(2)
-        origem = c1.selectbox('Origem', OPCOES_ORIGEM)
-        tipo = c2.selectbox('Tipo', OPCOES_TIPO)
-        
+        # A rua e o resto continuam dentro do form para agrupar o envio
         rua = st.text_input('Rua')
         c3, c4, c5 = st.columns(3)
         numero = c3.text_input('Número')
@@ -521,7 +534,7 @@ elif page == "Registrar Denúncia":
         longitude = col_lon.text_input('Longitude (Ex: -35.9701)')
         ponto_ref = st.text_input('Ponto de Referência')
 
-        # Lógica do Link: Aparece assim que os campos são preenchidos
+        # Lógica do Link
         link_google = ""
         if latitude and longitude:
             link_google = f"https://www.google.com/maps?q={latitude},{longitude}"
@@ -540,26 +553,24 @@ elif page == "Registrar Denúncia":
         if btn_submit:
             if not rua:
                 st.error("O campo 'Rua' é obrigatório.")
+            # Validação extra (opcional): Obrigar número se for Ouvidoria
+            elif origem in ORIGENS_EXTERNAS and not num_encaminhamento:
+                st.error(f"Para {origem}, é obrigatório informar o Nº do Encaminhamento.")
             else:
                 st.session_state.processando_registro = True
                 with st.spinner('Gravando dados...'):
-                    # 1. Carrega os dados mais recentes
                     df = load_data(SHEET_DENUNCIAS)
-                    
-                    # 2. Lógica Segura de ID: Pega o maior valor e soma 1
                     new_id = gerar_novo_id()
-                    
-                    # 3. Gera o ID Externo formatado (ex: 0041/2026)
                     ext_id = f"{new_id:04d}/{datetime.now().year}"
                     agora_br = datetime.now(FUSO_BR).strftime('%Y-%m-%d %H:%M:%S')
                     
-                    # 4. Monta o registro
                     record = {
                         'id': new_id, 
                         'external_id': ext_id, 
                         'created_at': agora_br,
                         'origem': origem, 
                         'tipo': tipo, 
+                        'num_encaminhamento': num_encaminhamento, # --- MUDANÇA 2: Adicionado ao registro ---
                         'rua': rua, 
                         'numero': numero, 
                         'bairro': bairro, 
@@ -767,6 +778,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
