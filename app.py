@@ -507,20 +507,22 @@ elif page == "Registrar Denúncia":
     st.title("📝 Nova Denúncia")
 
     ORIGENS_EXTERNAS = ["Ouvidoria", "Ministério Publico", "Disk Denuncia"]
-    
+
+    # ---------------- CONTROLE FORA DO FORM ----------------
+    c1, c2 = st.columns(2)
+    origem = c1.selectbox("Origem", OPCOES_ORIGEM)
+    tipo = c2.selectbox("Tipo", OPCOES_TIPO)
+
+    num_encaminhamento = ""
+    if origem in ORIGENS_EXTERNAS:
+        st.info(f"Preencha o número do protocolo vindo do(a) {origem}")
+        num_encaminhamento = st.text_input(
+            "Nº do Encaminhamento / Protocolo"
+        )
+
+    # ---------------- FORM PRINCIPAL ----------------
     with st.form("form_denuncia"):
 
-        c1, c2 = st.columns(2)
-        origem = c1.selectbox("Origem", OPCOES_ORIGEM)
-        tipo = c2.selectbox("Tipo", OPCOES_TIPO)
-
-        num_encaminhamento = ""
-        if origem in ORIGENS_EXTERNAS:
-            st.info(f"Preencha o número do protocolo vindo do(a) {origem}")
-            num_encaminhamento = st.text_input(
-                "Nº do Encaminhamento / Protocolo"
-            )
-            
         rua = st.text_input("Rua")
         c3, c4, c5 = st.columns(3)
         numero = c3.text_input("Número")
@@ -767,6 +769,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
