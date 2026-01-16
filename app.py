@@ -90,6 +90,7 @@ def clean_text(text):
     return text.encode('latin-1', 'replace').decode('latin-1')
 
 def gerar_pdf(dados):
+    st.write("DEBUG DADOS RECEBIDOS NO PDF:", dados)
     try:
         class PDF(FPDF):
             def header(self):
@@ -786,6 +787,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
