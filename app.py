@@ -516,16 +516,18 @@ elif page == "Registrar Denúncia":
     # Definimos quais origens exigem o número
     ORIGENS_EXTERNAS = ["Ouvidoria", "Ministério Publico", "Disk Denuncia"] # Verifique se a grafia bate com sua lista OPCOES_ORIGEM
 
-    c1, c2 = st.columns(2)
-    # Como está fora do form, ao mudar a opção, o script roda e mostra o campo novo
-    origem = c1.selectbox('Origem', OPCOES_ORIGEM) 
-    tipo = c2.selectbox('Tipo', OPCOES_TIPO)
-    
-    # Lógica Condicional: O campo só aparece se a origem estiver na lista
-    num_encaminhamento = ""
-    if origem in ORIGENS_EXTERNAS:
-        st.info(f"Preencha o número do protocolo vindo do(a) {origem}")
-        num_encaminhamento = st.text_input('Nº do Encaminhamento / Protocolo')
+    with st.form("form_denuncia"):
+
+        c1, c2 = st.columns(2)
+        origem = c1.selectbox('Origem', OPCOES_ORIGEM)
+        tipo = c2.selectbox('Tipo', OPCOES_TIPO)
+
+        num_encaminhamento = ""
+        if origem in ORIGENS_EXTERNAS:
+            st.info(f"Preencha o número do protocolo vindo do(a) {origem}")
+            num_encaminhamento = st.text_input(
+                'Nº do Encaminhamento / Protocolo'
+            )
     # -------------------------------------------------------------------------------
 
     with st.form('reg'):
@@ -787,6 +789,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
