@@ -153,8 +153,8 @@ def gerar_pdf(dados):
         origem = dados.get('origem', '')
         num_enc = dados.get('numero_encaminhamento', '')
 
-        if origem in ["Ouvidoria", "Ministério Publico", "Disk Denuncia"] and num_enc:
-           origem_texto = f"{origem} - Protocolo Nº {num_enc}"
+        if origem in ["Ouvidoria", "Ministério Publico", "Disk Denuncia"] and num_encaminhamento:
+           origem_texto = f"{origem} - Protocolo Nº {num_encaminhamento}"
         else:
            origem_texto = origem
 
@@ -786,6 +786,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
