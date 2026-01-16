@@ -150,10 +150,18 @@ def gerar_pdf(dados):
         pdf.set_font("Arial", '', 9)
         pdf.cell(15, 8, hora_fmt, 1, 0, 'C')
 
+        origem = dados.get('origem', '')
+        num_enc = dados.get('numero_encaminhamento', '')
+
+        if origem in ["Ouvidoria", "Ministério Publico", "Disk Denuncia"] and num_enc:
+           origem_texto = f"{origem} - Protocolo Nº {num_enc}"
+        else:
+           origem_texto = origem
+
         pdf.set_font("Arial", 'B', 8)
         pdf.cell(18, 8, "ORIGEM:", 1, 0, 'L')
         pdf.set_font("Arial", '', 8)
-        pdf.cell(0, 8, clean_text(dados.get('origem', '')), 1, 1, 'L')
+        pdf.cell(0, 8, clean_text(origem_texto), 1, 1, 'L')
 
         # Linha 2: Bairro e Zona (TGS)
         pdf.set_font("Arial", 'B', 8)
@@ -778,6 +786,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
