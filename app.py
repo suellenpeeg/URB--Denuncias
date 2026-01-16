@@ -503,104 +503,82 @@ if page == "Dashboard":
     else:
         st.info("Nenhuma denúncia encontrada para gerar estatísticas.")
 # ============================================================
-# ALTERAÇÃO 3: PÁGINA DE REGISTRO
-# ============================================================
 elif page == "Registrar Denúncia":
     st.title("📝 Nova Denúncia")
-    
-    # Inicializa o estado de trava
-    if 'processando_registro' not in st.session_state:
-        st.session_state.processando_registro = False
 
-    # --- MUDANÇA 1: Campos de controle FORA do form para permitir interatividade ---
-    # Definimos quais origens exigem o número
-    ORIGENS_EXTERNAS = ["Ouvidoria", "Ministério Publico", "Disk Denuncia"] # Verifique se a grafia bate com sua lista OPCOES_ORIGEM
+    ORIGENS_EXTERNAS = ["Ouvidoria", "Ministério Publico", "Disk Denuncia"]
 
     with st.form("form_denuncia"):
 
         c1, c2 = st.columns(2)
-        origem = c1.selectbox('Origem', OPCOES_ORIGEM)
-        tipo = c2.selectbox('Tipo', OPCOES_TIPO)
+        origem = c1.selectbox("Origem", OPCOES_ORIGEM)
+        tipo = c2.selectbox("Tipo", OPCOES_TIPO)
 
         num_encaminhamento = ""
         if origem in ORIGENS_EXTERNAS:
             st.info(f"Preencha o número do protocolo vindo do(a) {origem}")
             num_encaminhamento = st.text_input(
-                'Nº do Encaminhamento / Protocolo'
+                "Nº do Encaminhamento / Protocolo"
             )
-    # -------------------------------------------------------------------------------
 
-    with st.form('reg'):
-        # A rua e o resto continuam dentro do form para agrupar o envio
-        rua = st.text_input('Rua')
+        rua = st.text_input("Rua")
         c3, c4, c5 = st.columns(3)
-        numero = c3.text_input('Número')
-        bairro = c4.text_input('Bairro')
-        zona = c5.selectbox('Zona', OPCOES_ZONA)
-        
-        st.markdown("---")
-        st.markdown("**📍 Localização e Referência**")
-        col_lat, col_lon = st.columns(2)
-        latitude = col_lat.text_input('Latitude (Ex: -8.2828)')
-        longitude = col_lon.text_input('Longitude (Ex: -35.9701)')
-        ponto_ref = st.text_input('Ponto de Referência')
+        numero = c3.text_input("Número")
+        bairro = c4.text_input("Bairro")
+        zona = c5.selectbox("Zona", OPCOES_ZONA)
 
-        # Lógica do Link
+        st.markdown("---")
+        col_lat, col_lon = st.columns(2)
+        latitude = col_lat.text_input("Latitude")
+        longitude = col_lon.text_input("Longitude")
+        ponto_ref = st.text_input("Ponto de Referência")
+
         link_google = ""
         if latitude and longitude:
             link_google = f"https://www.google.com/maps?q={latitude},{longitude}"
-            st.info(f"🔗 **Link Visualizado:** {link_google}")
-        
+            st.caption(link_google)
+
         st.markdown("---")
-        desc = st.text_area('Descrição da Ocorrência')
-        quem = st.selectbox('Quem recebeu', OPCOES_FISCAIS_SELECT)
-        
-        # Botão com trava dinâmica
-        btn_submit = st.form_submit_button(
-            '💾 Salvar Denúncia', 
-            disabled=st.session_state.processando_registro
-        )
-        
-        if btn_submit:
-            if not rua:
-                st.error("O campo 'Rua' é obrigatório.")
-            # Validação extra (opcional): Obrigar número se for Ouvidoria
-            elif origem in ORIGENS_EXTERNAS and not num_encaminhamento:
-                st.error(f"Para {origem}, é obrigatório informar o Nº do Encaminhamento.")
-            else:
-                st.session_state.processando_registro = True
-                with st.spinner('Gravando dados...'):
-                    df = load_data(SHEET_DENUNCIAS)
-                    new_id = gerar_novo_id()
-                    ext_id = f"{new_id:04d}/{datetime.now().year}"
-                    agora_br = datetime.now(FUSO_BR).strftime('%Y-%m-%d %H:%M:%S')
-                    
-                    record = {
-                        'id': new_id, 
-                        'external_id': ext_id, 
-                        'created_at': agora_br,
-                        'origem': origem, 
-                        'tipo': tipo, 
-                        'num_encaminhamento': num_encaminhamento, # --- MUDANÇA 2: Adicionado ao registro ---
-                        'rua': rua, 
-                        'numero': numero, 
-                        'bairro': bairro, 
-                        'zona': zona, 
-                        'latitude': latitude, 
-                        'longitude': longitude,
-                        'ponto_referencia': ponto_ref,
-                        'link_maps': link_google,
-                        'descricao': desc, 
-                        'quem_recebeu': quem, 
-                        'status': 'Pendente', 
-                        'acao_noturna': 'FALSE'
-                    }
-                    
-                    salvar_dados_seguro(SHEET_DENUNCIAS, record)
-                    st.success(f"Denúncia {ext_id} salva!")
-                    st.session_state.processando_registro = False
-                    time.sleep(1)
-                    st.rerun()
+        desc = st.text_area("Descrição da Ocorrência")
+        quem = st.selectbox("Quem recebeu", OPCOES_FISCAIS_SELECT)
+
+        btn_submit = st.form_submit_button("💾 Salvar Denúncia")
+
+    if btn_submit:
+        if not rua:
+            st.error("O campo Rua é obrigatório.")
+        elif origem in ORIGENS_EXTERNAS and not num_encaminhamento:
+            st.error(f"Para {origem}, é obrigatório informar o Nº do Encaminhamento.")
+        else:
+            new_id = gerar_novo_id()
+            ext_id = f"{new_id:04d}/{datetime.now().year}"
+            agora_br = datetime.now(FUSO_BR).strftime("%Y-%m-%d %H:%M:%S")
+
+            record = {
+                "id": new_id,
+                "external_id": ext_id,
+                "created_at": agora_br,
+                "origem": origem,
+                "tipo": tipo,
+                "num_encaminhamento": num_encaminhamento,
+                "rua": rua,
+                "numero": numero,
+                "bairro": bairro,
+                "zona": zona,
+                "latitude": latitude,
+                "longitude": longitude,
+                "ponto_referencia": ponto_ref,
+                "link_maps": link_google,
+                "descricao": desc,
+                "quem_recebeu": quem,
+                "status": "Pendente",
+                "acao_noturna": "FALSE"
+            }
+
+            salvar_dados_seguro(SHEET_DENUNCIAS, record)
+            st.success(f"Denúncia {ext_id} salva!")
+            time.sleep(1)
+            st.rerun()
 
 # ============================================================
 # PÁGINA 3: HISTÓRICO / GERENCIAMENTO
@@ -789,6 +767,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
