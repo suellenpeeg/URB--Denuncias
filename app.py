@@ -31,7 +31,7 @@ OPCOES_FISCAIS_SELECT = ['Edvaldo Wilson Bezerra da Silva - 000.323', 'PATRICIA 
 
 # SCHEMAS
 DENUNCIA_SCHEMA = [
-    'id', 'external_id', 'created_at', 'origem', 'tipo', 'rua', 
+    'id', 'external_id', 'created_at', 'origem', 'tipo', 'num_encaminhamento', 'rua', 
     'numero', 'bairro', 'zona', 'ponto_referencia', 'latitude', 'longitude', 'link maps', 
     'descricao', 'quem_recebeu', 'status', 'acao_noturna'
 ]
@@ -786,6 +786,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
