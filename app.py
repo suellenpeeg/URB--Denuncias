@@ -505,7 +505,7 @@ elif page == "Registrar Denúncia":
 
     # --- MUDANÇA 1: Campos de controle FORA do form para permitir interatividade ---
     # Definimos quais origens exigem o número
-    ORIGENS_EXTERNAS = ["Ouvidoria", "Ministério Público", "Disk Denúncia"] # Verifique se a grafia bate com sua lista OPCOES_ORIGEM
+    ORIGENS_EXTERNAS = ["Ouvidoria", "Ministério Publico", "Disk Denuncia"] # Verifique se a grafia bate com sua lista OPCOES_ORIGEM
 
     c1, c2 = st.columns(2)
     # Como está fora do form, ao mudar a opção, o script roda e mostra o campo novo
@@ -778,6 +778,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
