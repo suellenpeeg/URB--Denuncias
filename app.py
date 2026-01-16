@@ -507,42 +507,42 @@ elif page == "Registrar Denúncia":
     st.title("📝 Nova Denúncia")
 
     ORIGENS_EXTERNAS = ["Ouvidoria", "Ministério Publico", "Disk Denuncia"]
+    
+    with st.form("form_denuncia"):
 
-    c1, c2 = st.columns(2)
-    origem = c1.selectbox("Origem", OPCOES_ORIGEM, key="origem")
-    tipo = c2.selectbox("Tipo", OPCOES_TIPO)
+        c1, c2 = st.columns(2)
+        origem = c1.selectbox("Origem", OPCOES_ORIGEM)
+        tipo = c2.selectbox("Tipo", OPCOES_TIPO)
 
-    num_encaminhamento = ""
-    if origem in ORIGENS_EXTERNAS:
-       st.info(f"Preencha o número do protocolo vindo do(a) {origem}")
-       num_encaminhamento = st.text_input(
-           "Nº do Encaminhamento / Protocolo",
-            key="num_enc"
-       )
+        num_encaminhamento = ""
+        if origem in ORIGENS_EXTERNAS:
+            st.info(f"Preencha o número do protocolo vindo do(a) {origem}")
+            num_encaminhamento = st.text_input(
+                "Nº do Encaminhamento / Protocolo"
+            )
+            
+        rua = st.text_input("Rua")
+        c3, c4, c5 = st.columns(3)
+        numero = c3.text_input("Número")
+        bairro = c4.text_input("Bairro")
+        zona = c5.selectbox("Zona", OPCOES_ZONA)
 
+        st.markdown("---")
+        col_lat, col_lon = st.columns(2)
+        latitude = col_lat.text_input("Latitude")
+        longitude = col_lon.text_input("Longitude")
+        ponto_ref = st.text_input("Ponto de Referência")
 
-    rua = st.text_input("Rua")
-    c3, c4, c5 = st.columns(3)
-    numero = c3.text_input("Número")
-    bairro = c4.text_input("Bairro")
-    zona = c5.selectbox("Zona", OPCOES_ZONA)
+        link_google = ""
+        if latitude and longitude:
+            link_google = f"https://www.google.com/maps?q={latitude},{longitude}"
+            st.caption(link_google)
 
-    st.markdown("---")
-    col_lat, col_lon = st.columns(2)
-    latitude = col_lat.text_input("Latitude")
-    longitude = col_lon.text_input("Longitude")
-    ponto_ref = st.text_input("Ponto de Referência")
+        st.markdown("---")
+        desc = st.text_area("Descrição da Ocorrência")
+        quem = st.selectbox("Quem recebeu", OPCOES_FISCAIS_SELECT)
 
-    link_google = ""
-    if latitude and longitude:
-        link_google = f"https://www.google.com/maps?q={latitude},{longitude}"
-        st.caption(link_google)
-
-    st.markdown("---")
-    desc = st.text_area("Descrição da Ocorrência")
-    quem = st.selectbox("Quem recebeu", OPCOES_FISCAIS_SELECT)
-
-    btn_submit = st.form_submit_button("💾 Salvar Denúncia")
+        btn_submit = st.form_submit_button("💾 Salvar Denúncia")
 
     if btn_submit:
         if not rua:
@@ -767,6 +767,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
