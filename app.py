@@ -90,7 +90,6 @@ def clean_text(text):
     return text.encode('latin-1', 'replace').decode('latin-1')
 
 def gerar_pdf(dados):
-    st.write("DEBUG DADOS RECEBIDOS NO PDF:", dados)
     try:
         class PDF(FPDF):
             def header(self):
@@ -155,7 +154,7 @@ def gerar_pdf(dados):
         num_encaminhamento = dados.get('num_encaminhamento', '')
 
         if origem in ["Ouvidoria", "Ministério Publico", "Disk Denuncia"] and num_encaminhamento:
-           origem_texto = f"{origem} - Protocolo Nº {num_encaminhamento}"
+           origem_texto = f"{origem} - Nº {num_encaminhamento}"
         else:
            origem_texto = origem
 
@@ -769,6 +768,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
