@@ -419,6 +419,14 @@ if st.sidebar.button("Sair"):
 if page == "Dashboard":
     st.title("📊 Visão Geral da Fiscalização")
     df = load_data(SHEET_DENUNCIAS)
+
+    # --- SANITIZAÇÃO DO ID (OBRIGATÓRIA) ---
+    if 'id' in df.columns:
+        df['id'] = pd.to_numeric(df['id'], errors='coerce')
+        df = df.dropna(subset=['id'])
+        df['id'] = df['id'].astype(int)
+        df = df.drop_duplicates(subset=['id'], keep='last')
+
     
     if not df.empty:
         # --- MÉTRICAS PRINCIPAIS ---
@@ -768,6 +776,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
