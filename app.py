@@ -33,7 +33,7 @@ OPCOES_FISCAIS_SELECT = ['Edvaldo Wilson Bezerra da Silva - 000.323', 'PATRICIA 
 DENUNCIA_SCHEMA = [
     'id', 'external_id', 'created_at', 'origem', 'tipo', 'num_encaminhamento', 'rua', 
     'numero', 'bairro', 'zona', 'ponto_referencia', 'latitude', 'longitude', 'link maps', 
-    'descricao', 'quem_recebeu', 'status', 'acao_noturna'
+    'descricao', 'observacoes', 'quem_recebeu', 'status', 'acao_noturna'
 ]
 
 REINCIDENCIA_SCHEMA = [
@@ -261,6 +261,26 @@ def gerar_pdf(dados):
         # 3. Espaço inferior final (os últimos 25mm para fechar o quadro)
         # "LRB" coloca a linha de baixo que fecha o quadro
         pdf.cell(0, 15, "", "LRB", 1, 'L') 
+
+        obs_texto = dados.get('observacoes', '').strip()
+
+        pdf.ln(5)
+
+        celula_cinza("OBSERVAÇÕES ADMINISTRATIVAS / DE CAMPO")
+
+        pdf.set_font("Arial", '', 9)
+
+        if obs_texto:
+           pdf.multi_cell(
+               0,
+               6,
+               clean_text(obs_texto),
+               1,
+              'L'
+           )
+        else:
+        # Mantém espaço em branco quando ainda não houver observações
+        pdf.cell(0, 30, "", 1, 1, 'L')
 
         pdf_output = pdf.output(dest='S')
         return bytes(pdf_output) if not isinstance(pdf_output, str) else pdf_output.encode('latin-1')
@@ -579,6 +599,7 @@ elif page == "Registrar Denúncia":
                 "ponto_referencia": ponto_ref,
                 "link_maps": link_google,
                 "descricao": desc,
+                "observacoes": "",
                 "quem_recebeu": quem,
                 "status": "Pendente",
                 "acao_noturna": "FALSE"
@@ -633,6 +654,15 @@ elif page == "Histórico / Editar":
             if idx_list:
                 idx = idx_list[0]
                 row_data = df.iloc[idx]
+
+                st.markdown("### 📝 Observações Administrativas / de Campo")
+
+                 nova_obs = st.text_area(
+                     "Uso interno da fiscalização",
+                      value=str(row_data.get('observacoes', '')),
+                      height=160,
+                      placeholder="Preencher após vistoria em campo..."
+                  )
                 
                 with st.form("form_edicao"):
                     col_e1, col_e2, col_e3 = st.columns(3)
@@ -674,6 +704,7 @@ elif page == "Histórico / Editar":
                         df.at[idx, 'ponto_referencia'] = nova_ref
                         df.at[idx, 'descricao'] = nova_desc
                         df.at[idx, 'link_maps'] = link_edit
+                        df.at[idx, 'observacoes'] = nova_obs
                         
                         update_full_sheet(SHEET_DENUNCIAS, df)
                         st.success("Atualizado com sucesso!")
@@ -776,6 +807,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
