@@ -631,22 +631,32 @@ elif page == "Histórico / Editar":
             f_status = c3.selectbox("Status", ["Todos"] + OPCOES_STATUS, key="filtro_status")
             f_id = c4.text_input("Nº da OS (Ex: 0001)", key="filtro_id")
 
+# Aplicar Filtros
+df_filtrado = df.copy()
 
-        # Aplicar Filtros
-            df_filtrado = df.copy()
-        if f_bairro:
-            df_filtrado = df_filtrado[df_filtrado['bairro'].str.contains(f_bairro, case=False, na=False)]
-        if f_zona != "Todos":
-            df_filtrado = df_filtrado[df_filtrado['zona'] == f_zona]
-        if f_status != "Todos":
-            df_filtrado = df_filtrado[df_filtrado['status'] == f_status]
-        if f_id:
-            df_filtrado = df_filtrado[df_filtrado['external_id'].str.contains(f_id, na=False)]
-        if f_busca:
-           termo = f_busca.strip()
+if f_bairro:
+    df_filtrado = df_filtrado[
+        df_filtrado['bairro'].str.contains(f_bairro, case=False, na=False)
+    ]
 
-            df_filtrado = df_filtrado[
-              df_filtrado['titulo'].str.contains(termo, case=False, na=False) |df_filtrado['descricao'].str.contains(termo, case=False, na=False)]
+if f_zona != "Todos":
+    df_filtrado = df_filtrado[df_filtrado['zona'] == f_zona]
+
+if f_status != "Todos":
+    df_filtrado = df_filtrado[df_filtrado['status'] == f_status]
+
+if f_id:
+    df_filtrado = df_filtrado[
+        df_filtrado['external_id'].astype(str).str.contains(f_id, na=False)
+    ]
+
+if f_busca:
+    termo = f_busca.strip()
+
+    df_filtrado = df_filtrado[
+        df_filtrado['titulo'].astype(str).str.contains(termo, case=False, na=False) |
+        df_filtrado['descricao'].astype(str).str.contains(termo, case=False, na=False)
+    ]
 
         # --- LÓGICA DE EDIÇÃO (APARECE NO TOPO SE CLICAR NO LÁPIS) ---
         if 'edit_id' in st.session_state:
@@ -814,6 +824,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
