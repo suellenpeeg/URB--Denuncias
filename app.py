@@ -619,7 +619,7 @@ elif page == "Histórico / Editar":
       
        # --- SEÇÃO DE FILTROS ---
     with st.expander("🔍 Filtros de Busca", expanded=False):
-       c0, c1, c2, c3, c4 = st.columns([2,1,1,1,1])
+    c0, c1, c2, c3, c4 = st.columns([2, 1, 1, 1, 1])
 
     f_busca = c0.text_input(
         "🔎 Busca geral",
@@ -632,15 +632,8 @@ elif page == "Histórico / Editar":
     f_status = c3.selectbox("Status", ["Todos"] + OPCOES_STATUS, key="filtro_status")
     f_id = c4.text_input("Nº da OS (Ex: 0001)", key="filtro_id")
 
-
-# =========================================================
-# APLICAR FILTROS
-# =========================================================
-
-# SEMPRE inicializa o dataframe filtrado
 df_filtrado = df.copy()
 
-# Filtros simples
 if f_bairro:
     df_filtrado = df_filtrado[
         df_filtrado['bairro'].astype(str).str.contains(f_bairro, case=False, na=False)
@@ -657,8 +650,6 @@ if f_id:
         df_filtrado['external_id'].astype(str).str.contains(f_id, na=False)
     ]
 
-
-# Busca geral (texto livre)
 if f_busca:
     termo = f_busca.strip()
 
@@ -682,7 +673,6 @@ if f_busca:
 
         if mask is not None:
             df_filtrado = df_filtrado[mask]
-
 
 # --- LÓGICA DE EDIÇÃO (APARECE NO TOPO SE CLICAR NO LÁPIS) ---
 if 'edit_id' in st.session_state:
@@ -833,6 +823,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
