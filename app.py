@@ -271,16 +271,10 @@ def gerar_pdf(dados):
         pdf.set_font("Arial", '', 9)
 
         if obs_texto:
-           pdf.multi_cell(
-               0,
-               6,
-               clean_text(obs_texto),
-               1,
-              'L'
-           )
+           pdf.multi_cell(0,6,clean_text(obs_texto),1,'L')
         else:
         # Mantém espaço em branco quando ainda não houver observações
-        pdf.cell(0, 30, "", 1, 1, 'L')
+           pdf.cell(0, 30, "", 1, 1, 'L')
 
         pdf_output = pdf.output(dest='S')
         return bytes(pdf_output) if not isinstance(pdf_output, str) else pdf_output.encode('latin-1')
@@ -807,6 +801,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
