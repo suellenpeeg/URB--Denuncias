@@ -658,140 +658,123 @@ if f_busca:
         df_filtrado['descricao'].astype(str).str.contains(termo, case=False, na=False)
     ]
 
-        # --- LÓGICA DE EDIÇÃO (APARECE NO TOPO SE CLICAR NO LÁPIS) ---
-        if 'edit_id' in st.session_state:
-            st.markdown("---")
-            st.subheader(f"📝 Editando OS: {st.session_state.edit_id}")
-            
-            # Inicializa trava de edição
-            if 'salvando_edicao' not in st.session_state:
+# --- LÓGICA DE EDIÇÃO (APARECE NO TOPO SE CLICAR NO LÁPIS) ---
+if 'edit_id' in st.session_state:
+    st.markdown("---")
+    st.subheader(f"📝 Editando OS: {st.session_state.edit_id}")
+
+    # Inicializa trava de edição
+    if 'salvando_edicao' not in st.session_state:
+        st.session_state.salvando_edicao = False
+
+    idx_list = df.index[df['id'] == st.session_state.edit_id].tolist()
+    if idx_list:
+        idx = idx_list[0]
+        row_data = df.iloc[idx]
+
+        st.markdown("### 📝 Observações Administrativas / de Campo")
+
+        nova_obs = st.text_area(
+            "Uso interno da fiscalização",
+            value=str(row_data.get('observacoes', '')),
+            height=160,
+            placeholder="Preencher após vistoria em campo..."
+        )
+
+        with st.form("form_edicao"):
+            col_e1, col_e2, col_e3 = st.columns(3)
+
+            def get_index(lista, valor):
+                return lista.index(valor) if valor in lista else 0
+
+            novo_status = col_e1.selectbox(
+                "Status",
+                OPCOES_STATUS,
+                index=get_index(OPCOES_STATUS, row_data['status'])
+            )
+
+            nova_zona = col_e2.selectbox(
+                "Zona",
+                OPCOES_ZONA,
+                index=get_index(OPCOES_ZONA, row_data['zona'])
+            )
+
+            nova_origem = col_e3.selectbox(
+                "Origem",
+                OPCOES_ORIGEM,
+                index=get_index(OPCOES_ORIGEM, row_data['origem'])
+            )
+
+            col_e4, col_e5 = st.columns([2, 1])
+            nova_rua = col_e4.text_input(
+                "Rua",
+                value=str(row_data.get('rua', ''))
+            )
+            nova_ref = col_e5.text_input(
+                "Ponto de Referência",
+                value=str(row_data.get('ponto_referencia', ''))
+            )
+
+            col_lat, col_lon, col_num = st.columns(3)
+            nova_lat = col_lat.text_input(
+                "Latitude",
+                value=str(row_data.get('latitude', ''))
+            )
+            nova_lon = col_lon.text_input(
+                "Longitude",
+                value=str(row_data.get('longitude', ''))
+            )
+            novo_num = col_num.text_input(
+                "Número",
+                value=str(row_data.get('numero', ''))
+            )
+
+            nova_desc = st.text_area(
+                "Descrição",
+                value=str(row_data.get('descricao', '')),
+                height=150
+            )
+
+            # Link dinâmico
+            link_edit = ""
+            if nova_lat and nova_lon:
+                link_edit = f"https://www.google.com/maps?q={nova_lat},{nova_lon}"
+                st.caption(f"Novo Link: {link_edit}")
+
+            c_btn1, c_btn2 = st.columns([1, 5])
+
+            if c_btn1.form_submit_button(
+                "💾 Atualizar",
+                disabled=st.session_state.salvando_edicao
+            ):
+                st.session_state.salvando_edicao = True
+
+                df.at[idx, 'status'] = novo_status
+                df.at[idx, 'zona'] = nova_zona
+                df.at[idx, 'origem'] = nova_origem
+                df.at[idx, 'rua'] = nova_rua
+                df.at[idx, 'numero'] = novo_num
+                df.at[idx, 'latitude'] = nova_lat
+                df.at[idx, 'longitude'] = nova_lon
+                df.at[idx, 'ponto_referencia'] = nova_ref
+                df.at[idx, 'descricao'] = nova_desc
+                df.at[idx, 'link_maps'] = link_edit
+                df.at[idx, 'observacoes'] = nova_obs
+
+                update_full_sheet(SHEET_DENUNCIAS, df)
+                st.success("Atualizado com sucesso!")
+
                 st.session_state.salvando_edicao = False
+                del st.session_state.edit_id
+                time.sleep(1)
+                st.rerun()
 
-            idx_list = df.index[df['id'] == st.session_state.edit_id].tolist()
-            if idx_list:
-                idx = idx_list[0]
-                row_data = df.iloc[idx]
+            if c_btn2.form_submit_button("Cancelar"):
+                del st.session_state.edit_id
+                st.rerun()
 
-                st.markdown("### 📝 Observações Administrativas / de Campo")
+    st.markdown("---")
 
-                nova_obs = st.text_area(
-                    "Uso interno da fiscalização",
-                    value=str(row_data.get('observacoes', '')),
-                    height=160,
-                    placeholder="Preencher após vistoria em campo..."
-                )
-                
-                with st.form("form_edicao"):
-                    col_e1, col_e2, col_e3 = st.columns(3)
-                    def get_index(lista, valor):
-                        return lista.index(valor) if valor in lista else 0
-
-                    novo_status = col_e1.selectbox("Status", OPCOES_STATUS, index=get_index(OPCOES_STATUS, row_data['status']))
-                    nova_zona = col_e2.selectbox("Zona", OPCOES_ZONA, index=get_index(OPCOES_ZONA, row_data['zona']))
-                    nova_origem = col_e3.selectbox("Origem", OPCOES_ORIGEM, index=get_index(OPCOES_ORIGEM, row_data['origem']))
-                    
-                    col_e4, col_e5 = st.columns([2, 1])
-                    nova_rua = col_e4.text_input("Rua", value=str(row_data.get('rua', '')))
-                    nova_ref = col_e5.text_input("Ponto de Referência", value=str(row_data.get('ponto_referencia', '')))
-
-                    col_lat, col_lon, col_num = st.columns(3)
-                    nova_lat = col_lat.text_input("Latitude", value=str(row_data.get('latitude', '')))
-                    nova_lon = col_lon.text_input("Longitude", value=str(row_data.get('longitude', '')))
-                    novo_num = col_num.text_input("Número", value=str(row_data.get('numero', '')))
-                    
-                    nova_desc = st.text_area("Descrição", value=str(row_data.get('descricao', '')), height=150)
-                    
-                    # Link dinâmico na edição
-                    link_edit = ""
-                    if nova_lat and nova_lon:
-                        link_edit = f"https://www.google.com/maps?q={nova_lat},{nova_lon}"
-                        st.caption(f"Novo Link: {link_edit}")
-
-                    c_btn1, c_btn2 = st.columns([1, 5])
-                    # BOTÃO ATUALIZAR COM TRAVA
-                    if c_btn1.form_submit_button("💾 Atualizar", disabled=st.session_state.salvando_edicao):
-                        st.session_state.salvando_edicao = True
-                        df.at[idx, 'status'] = novo_status
-                        df.at[idx, 'zona'] = nova_zona
-                        df.at[idx, 'origem'] = nova_origem
-                        df.at[idx, 'rua'] = nova_rua
-                        df.at[idx, 'numero'] = novo_num
-                        df.at[idx, 'latitude'] = nova_lat
-                        df.at[idx, 'longitude'] = nova_lon
-                        df.at[idx, 'ponto_referencia'] = nova_ref
-                        df.at[idx, 'descricao'] = nova_desc
-                        df.at[idx, 'link_maps'] = link_edit
-                        df.at[idx, 'observacoes'] = nova_obs
-                        
-                        update_full_sheet(SHEET_DENUNCIAS, df)
-                        st.success("Atualizado com sucesso!")
-                        st.session_state.salvando_edicao = False
-                        del st.session_state.edit_id
-                        time.sleep(1)
-                        st.rerun()
-                    
-                    if c_btn2.form_submit_button("Cancelar"):
-                        del st.session_state.edit_id
-                        st.rerun()
-            st.markdown("---")
-
-        # --- LISTAGEM ÚNICA DE CARDS ---
-        st.write(f"Exibindo **{len(df_filtrado)}** registros")
-        df_filtrado = df_filtrado.sort_values(by='id', ascending=False)
-
-        # O 'i' aqui garante que cada linha do loop tenha um número único
-        for i, row in enumerate(df_filtrado.itertuples()):
-            # Usamos row.id e row.external_id (itertuples é mais rápido e seguro)
-            idx_real = row.id
-            ext_id_limpo = str(row.external_id).replace('/', '_')
-
-            with st.container(border=True):
-                c_info, c_status, c_pdf, c_edit, c_del = st.columns([3, 1, 0.5, 0.5, 0.5])
-                
-                c_info.markdown(f"### OS {row.external_id}")
-                c_info.write(f"📍 **{row.rua}**, {row.numero} - {row.bairro} ({row.zona})")
-                c_info.caption(f"🗓️ {row.created_at} | 👤 {row.quem_recebeu}")
-                
-                st_val = str(row.status)
-                clr = "orange" if st_val == "Pendente" else "green" if st_val == "Concluída" else "blue"
-                c_status.markdown(f"<br>:{clr}[**{st_val.upper()}**]", unsafe_allow_html=True)
-                
-                # 1. BOTÃO PDF (CHAVE ÚNICA)
-                res_pdf = gerar_pdf(row._asdict()) # converte linha para dicionário
-                if isinstance(res_pdf, bytes):
-                    c_pdf.markdown("<br>", unsafe_allow_html=True)
-                    c_pdf.download_button(
-                        "📄", 
-                        res_pdf, 
-                        f"OS_{ext_id_limpo}.pdf", 
-                        "application/pdf", 
-                        key=f"pdf_btn_{idx_real}_{i}"
-                    )
-                
-                # 2. BOTÃO EDITAR (CHAVE ÚNICA)
-                c_edit.markdown("<br>", unsafe_allow_html=True)
-                if c_edit.button("✏️", key=f"ed_btn_{idx_real}_{i}"):
-                    st.session_state.edit_id = idx_real
-                    st.rerun()
-                    
-                # 3. BOTÃO DELETAR (CHAVE ÚNICA)
-                c_del.markdown("<br>", unsafe_allow_html=True)
-                if c_del.button("🗑️", key=f"del_btn_{idx_real}_{i}"):
-                    st.session_state.confirm_del = idx_real
-
-                # Confirmação de exclusão (CHAVE ÚNICA)
-                if 'confirm_del' in st.session_state and st.session_state.confirm_del == idx_real:
-                    st.error(f"Excluir permanentemente OS {row.external_id}?")
-                    ca1, ca2 = st.columns([1, 8])
-                    if ca1.button("Sim", key=f"conf_sim_{idx_real}_{i}"):
-                        # ... lógica de exclusão ...
-                        df_final = df[df['id'] != idx_real]
-                        update_full_sheet(SHEET_DENUNCIAS, df_final)
-                        del st.session_state.confirm_del
-                        st.rerun()
-                    if ca2.button("Não", key=f"conf_nao_{idx_real}_{i}"):
-                        del st.session_state.confirm_del
-                        st.rerun()
 
 # ============================================================
 # PÁGINA 4: REINCIDÊNCIAS
@@ -824,6 +807,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
