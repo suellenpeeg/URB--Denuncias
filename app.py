@@ -651,12 +651,12 @@ elif page == "Histórico / Editar":
 
                 st.markdown("### 📝 Observações Administrativas / de Campo")
 
-                 nova_obs = st.text_area(
-                     "Uso interno da fiscalização",
-                      value=str(row_data.get('observacoes', '')),
-                      height=160,
-                      placeholder="Preencher após vistoria em campo..."
-                  )
+                nova_obs = st.text_area(
+                    "Uso interno da fiscalização",
+                    value=str(row_data.get('observacoes', '')),
+                    height=160,
+                    placeholder="Preencher após vistoria em campo..."
+                )
                 
                 with st.form("form_edicao"):
                     col_e1, col_e2, col_e3 = st.columns(3)
@@ -801,6 +801,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
