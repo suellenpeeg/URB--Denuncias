@@ -617,23 +617,20 @@ elif page == "Histórico / Editar":
         st.info("Nenhum registro encontrado.")
     else:
         # --- SEÇÃO DE FILTROS ---
-        with st.expander("🔍 Filtros de Busca", expanded=False):
-             c0, c1, c2, c3, c4 = st.columns([2,1,1,1,1])
+       with st.expander("🔍 Filtros de Busca", expanded=False):
+            c0, c1, c2, c3, c4 = st.columns([2,1,1,1,1])
 
-             f_busca = c0.text_input("🔎 Busca geral",placeholder="Pesquisar no título ou descrição da denúncia...")
+            f_busca = c0.text_input(
+              "🔎 Busca geral",
+              placeholder="Pesquisar no título ou descrição da denúncia...",
+              key="filtro_busca_geral"
+            )
 
-             f_bairro = c1.text_input("Bairro")
-             f_zona = c2.selectbox("Zona", ["Todos"] + OPCOES_ZONA)
-             f_status = c3.selectbox("Status", ["Todos"] + OPCOES_STATUS)
-             f_id = c4.text_input("Nº da OS (Ex: 0001)")
+            f_bairro = c1.text_input("Bairro", key="filtro_bairro")
+            f_zona = c2.selectbox("Zona", ["Todos"] + OPCOES_ZONA, key="filtro_zona")
+            f_status = c3.selectbox("Status", ["Todos"] + OPCOES_STATUS, key="filtro_status")
+            f_id = c4.text_input("Nº da OS (Ex: 0001)", key="filtro_id")
 
-        
-        with st.expander("🔍 Filtros de Busca", expanded=False):
-            c1, c2, c3, c4 = st.columns(4)
-            f_bairro = c1.text_input("Bairro")
-            f_zona = c2.selectbox("Zona", ["Todos"] + OPCOES_ZONA)
-            f_status = c3.selectbox("Status", ["Todos"] + OPCOES_STATUS)
-            f_id = c4.text_input("Nº da OS (Ex: 0001)")
 
         # Aplicar Filtros
         df_filtrado = df.copy()
@@ -817,6 +814,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
