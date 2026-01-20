@@ -850,12 +850,10 @@ for _, row in df_filt.sort_values(by='id', ascending=False).iterrows():
             else:
                 st.error("Apenas admins excluem.")
 
-
-
 # ============================================================
 # PÁGINA 4: REINCIDÊNCIAS
 # ============================================================
-elif page == "Reincidências":
+if page == "Reincidências":
     st.title("🔄 Reincidência")
     df_den = load_data(SHEET_DENUNCIAS)
     if not df_den.empty:
@@ -883,6 +881,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
