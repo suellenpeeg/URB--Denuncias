@@ -616,9 +616,10 @@ elif page == "Histórico / Editar":
     if df.empty:
         st.info("Nenhum registro encontrado.")
     else:
+      
        # --- SEÇÃO DE FILTROS ---
-with st.expander("🔍 Filtros de Busca", expanded=False):
-    c0, c1, c2, c3, c4 = st.columns([2,1,1,1,1])
+    with st.expander("🔍 Filtros de Busca", expanded=False):
+       c0, c1, c2, c3, c4 = st.columns([2,1,1,1,1])
 
     f_busca = c0.text_input(
         "🔎 Busca geral",
@@ -832,6 +833,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
