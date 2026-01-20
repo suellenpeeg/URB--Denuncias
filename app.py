@@ -633,7 +633,7 @@ elif page == "Histórico / Editar":
 
 
         # Aplicar Filtros
-        df_filtrado = df.copy()
+            df_filtrado = df.copy()
         if f_bairro:
             df_filtrado = df_filtrado[df_filtrado['bairro'].str.contains(f_bairro, case=False, na=False)]
         if f_zona != "Todos":
@@ -645,7 +645,7 @@ elif page == "Histórico / Editar":
         if f_busca:
            termo = f_busca.strip()
 
-           df_filtrado = df_filtrado[
+            df_filtrado = df_filtrado[
               df_filtrado['titulo'].str.contains(termo, case=False, na=False) |df_filtrado['descricao'].str.contains(termo, case=False, na=False)]
 
         # --- LÓGICA DE EDIÇÃO (APARECE NO TOPO SE CLICAR NO LÁPIS) ---
@@ -814,6 +814,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
