@@ -654,7 +654,6 @@ if f_busca:
     termo = f_busca.strip()
 
     df_filtrado = df_filtrado[
-        df_filtrado['titulo'].astype(str).str.contains(termo, case=False, na=False) |
         df_filtrado['descricao'].astype(str).str.contains(termo, case=False, na=False)
     ]
 
@@ -807,6 +806,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
