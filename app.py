@@ -609,15 +609,15 @@ elif page == "Registrar Denúncia":
 # ============================================================
 elif page == "Histórico / Editar":
     st.title("🗂️ Gerenciamento de Ocorrências")
-    
-    # 1. Carregar dados
+
     df = load_data(SHEET_DENUNCIAS)
-    
+
     if df.empty:
         st.info("Nenhum registro encontrado.")
     else:
-
-        # --- SEÇÃO DE FILTROS ---
+        # ===============================
+        # FILTROS
+        # ===============================
         with st.expander("🔍 Filtros de Busca", expanded=False):
             c0, c1, c2, c3, c4 = st.columns([2, 1, 1, 1, 1])
 
@@ -632,9 +632,9 @@ elif page == "Histórico / Editar":
             f_status = c3.selectbox("Status", ["Todos"] + OPCOES_STATUS, key="filtro_status")
             f_id = c4.text_input("Nº da OS (Ex: 0001)", key="filtro_id")
 
-        # =========================================================
+        # ===============================
         # APLICAR FILTROS
-        # =========================================================
+        # ===============================
         df_filtrado = df.copy()
 
         if f_bairro:
@@ -655,7 +655,6 @@ elif page == "Histórico / Editar":
 
         if f_busca:
             termo = f_busca.strip()
-
             if termo:
                 colunas_busca = [
                     'descricao',
@@ -677,7 +676,21 @@ elif page == "Histórico / Editar":
                 if mask is not None:
                     df_filtrado = df_filtrado[mask]
 
-st.warning(f"DEBUG: registros após filtro = {len(df_filtrado)}")
+        # ===============================
+        # LISTAGEM DE CARDS (OBRIGATÓRIO ESTAR AQUI)
+        # ===============================
+        st.success(f"Exibindo {len(df_filtrado)} registros")
+
+        if df_filtrado.empty:
+            st.warning("Nenhum registro encontrado após os filtros.")
+        else:
+            df_filtrado = df_filtrado.sort_values(by="id", ascending=False)
+
+            for i, row in enumerate(df_filtrado.itertuples()):
+                with st.container(border=True):
+                    st.markdown(f"### OS {row.external_id}")
+                    st.write(row.descricao)
+
 
 
 # --- LÓGICA DE EDIÇÃO (APARECE NO TOPO SE CLICAR NO LÁPIS) ---
@@ -829,6 +842,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
