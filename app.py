@@ -676,65 +676,7 @@ elif page == "Histórico / Editar":
                 if mask is not None:
                     df_filtrado = df_filtrado[mask]
 
-       # --- LISTAGEM ---
 df_filt = df_filtrado.copy()
-
-st.write(f"Exibindo **{len(df_filt)}** resultados")
-
-for _, row in df_filt.sort_values(by='id', ascending=False).iterrows():
-    with st.container(border=True):
-        col1, col2, col3, col4 = st.columns([1, 3, 1.5, 1])
-
-        col1.markdown(
-            f"**{row['external_id']}**\n\n{row['created_at'][:10]}"
-        )
-
-        col2.markdown(
-            f"📍 **{row['bairro']}** - {row['rua']}, {row['numero']}\n\n"
-            f"📝 _{row['descricao'][:100]}..._"
-        )
-
-        # Badge de Status
-        cor = (
-            "orange" if row['status'] == "Pendente"
-            else "blue" if "Monitoramento" in row['status']
-            else "green" if row['status'] == "Concluída"
-            else "gray"
-        )
-        col3.markdown(f":{cor}[**{row['status']}**]")
-        col3.caption(f"Fiscal: {row['quem_recebeu'].split(' - ')[0]}")
-
-        # Botões de Ação
-        b1, b2, b3 = col4.columns(3)
-
-        # Editar
-        if b1.button("✏️", key=f"ed_{row['id']}"):
-            st.session_state.edit_id = row['id']
-            st.rerun()
-
-        # PDF
-        pdf_b = gerar_pdf(row)
-        b2.download_button(
-            "📄",
-            pdf_b,
-            f"OS_{row['id']}.pdf",
-            "application/pdf",
-            key=f"pdf_{row['id']}"
-        )
-
-        # Excluir
-        if b3.button("🗑️", key=f"del_{row['id']}"):
-            if user_info['role'] == 'admin':
-                df = df[df['id'] != row['id']]
-                update_full_sheet(SHEET_DENUNCIAS, df)
-                st.toast("Registro excluído!")
-                time.sleep(1)
-                st.rerun()
-            else:
-                st.error("Apenas admins excluem.")
-
-
-
 
 # --- LÓGICA DE EDIÇÃO (APARECE NO TOPO SE CLICAR NO LÁPIS) ---
 if 'edit_id' in st.session_state:
@@ -852,6 +794,62 @@ if 'edit_id' in st.session_state:
                 st.rerun()
 
     st.markdown("---")
+    
+# --- LISTAGEM) ---
+st.write(f"Exibindo **{len(df_filt)}** resultados")
+
+for _, row in df_filt.sort_values(by='id', ascending=False).iterrows():
+    with st.container(border=True):
+        col1, col2, col3, col4 = st.columns([1, 3, 1.5, 1])
+
+        col1.markdown(
+            f"**{row['external_id']}**\n\n{row['created_at'][:10]}"
+        )
+
+        col2.markdown(
+            f"📍 **{row['bairro']}** - {row['rua']}, {row['numero']}\n\n"
+            f"📝 _{row['descricao'][:100]}..._"
+        )
+
+        # Badge de Status
+        cor = (
+            "orange" if row['status'] == "Pendente"
+            else "blue" if "Monitoramento" in row['status']
+            else "green" if row['status'] == "Concluída"
+            else "gray"
+        )
+        col3.markdown(f":{cor}[**{row['status']}**]")
+        col3.caption(f"Fiscal: {row['quem_recebeu'].split(' - ')[0]}")
+
+        # Botões de Ação
+        b1, b2, b3 = col4.columns(3)
+
+        # Editar
+        if b1.button("✏️", key=f"ed_{row['id']}"):
+            st.session_state.edit_id = row['id']
+            st.rerun()
+
+        # PDF
+        pdf_b = gerar_pdf(row)
+        b2.download_button(
+            "📄",
+            pdf_b,
+            f"OS_{row['id']}.pdf",
+            "application/pdf",
+            key=f"pdf_{row['id']}"
+        )
+
+        # Excluir
+        if b3.button("🗑️", key=f"del_{row['id']}"):
+            if user_info['role'] == 'admin':
+                df = df[df['id'] != row['id']]
+                update_full_sheet(SHEET_DENUNCIAS, df)
+                st.toast("Registro excluído!")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("Apenas admins excluem.")
+
 
 
 # ============================================================
@@ -885,6 +883,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
