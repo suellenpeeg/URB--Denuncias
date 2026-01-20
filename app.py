@@ -616,63 +616,66 @@ elif page == "Histórico / Editar":
     if df.empty:
         st.info("Nenhum registro encontrado.")
     else:
-      
-       # --- SEÇÃO DE FILTROS ---
-    with st.expander("🔍 Filtros de Busca", expanded=False):
-    c0, c1, c2, c3, c4 = st.columns([2, 1, 1, 1, 1])
 
-    f_busca = c0.text_input(
-        "🔎 Busca geral",
-        placeholder="Pesquisar no texto da denúncia...",
-        key="filtro_busca_geral"
-    )
+        # --- SEÇÃO DE FILTROS ---
+        with st.expander("🔍 Filtros de Busca", expanded=False):
+            c0, c1, c2, c3, c4 = st.columns([2, 1, 1, 1, 1])
 
-    f_bairro = c1.text_input("Bairro", key="filtro_bairro")
-    f_zona = c2.selectbox("Zona", ["Todos"] + OPCOES_ZONA, key="filtro_zona")
-    f_status = c3.selectbox("Status", ["Todos"] + OPCOES_STATUS, key="filtro_status")
-    f_id = c4.text_input("Nº da OS (Ex: 0001)", key="filtro_id")
+            f_busca = c0.text_input(
+                "🔎 Busca geral",
+                placeholder="Pesquisar no texto da denúncia...",
+                key="filtro_busca_geral"
+            )
 
-df_filtrado = df.copy()
+            f_bairro = c1.text_input("Bairro", key="filtro_bairro")
+            f_zona = c2.selectbox("Zona", ["Todos"] + OPCOES_ZONA, key="filtro_zona")
+            f_status = c3.selectbox("Status", ["Todos"] + OPCOES_STATUS, key="filtro_status")
+            f_id = c4.text_input("Nº da OS (Ex: 0001)", key="filtro_id")
 
-if f_bairro:
-    df_filtrado = df_filtrado[
-        df_filtrado['bairro'].astype(str).str.contains(f_bairro, case=False, na=False)
-    ]
+        # =========================================================
+        # APLICAR FILTROS
+        # =========================================================
+        df_filtrado = df.copy()
 
-if f_zona != "Todos":
-    df_filtrado = df_filtrado[df_filtrado['zona'] == f_zona]
+        if f_bairro:
+            df_filtrado = df_filtrado[
+                df_filtrado['bairro'].astype(str).str.contains(f_bairro, case=False, na=False)
+            ]
 
-if f_status != "Todos":
-    df_filtrado = df_filtrado[df_filtrado['status'] == f_status]
+        if f_zona != "Todos":
+            df_filtrado = df_filtrado[df_filtrado['zona'] == f_zona]
 
-if f_id:
-    df_filtrado = df_filtrado[
-        df_filtrado['external_id'].astype(str).str.contains(f_id, na=False)
-    ]
+        if f_status != "Todos":
+            df_filtrado = df_filtrado[df_filtrado['status'] == f_status]
 
-if f_busca:
-    termo = f_busca.strip()
+        if f_id:
+            df_filtrado = df_filtrado[
+                df_filtrado['external_id'].astype(str).str.contains(f_id, na=False)
+            ]
 
-    if termo:
-        colunas_busca = [
-            'descricao',
-            'observacoes',
-            'bairro',
-            'rua',
-            'origem',
-            'external_id'
-        ]
+        if f_busca:
+            termo = f_busca.strip()
 
-        mask = None
-        for col in colunas_busca:
-            if col in df_filtrado.columns:
-                col_mask = df_filtrado[col].astype(str).str.contains(
-                    termo, case=False, na=False
-                )
-                mask = col_mask if mask is None else (mask | col_mask)
+            if termo:
+                colunas_busca = [
+                    'descricao',
+                    'observacoes',
+                    'bairro',
+                    'rua',
+                    'origem',
+                    'external_id'
+                ]
 
-        if mask is not None:
-            df_filtrado = df_filtrado[mask]
+                mask = None
+                for col in colunas_busca:
+                    if col in df_filtrado.columns:
+                        col_mask = df_filtrado[col].astype(str).str.contains(
+                            termo, case=False, na=False
+                        )
+                        mask = col_mask if mask is None else (mask | col_mask)
+
+                if mask is not None:
+                    df_filtrado = df_filtrado[mask]
 
 # --- LÓGICA DE EDIÇÃO (APARECE NO TOPO SE CLICAR NO LÁPIS) ---
 if 'edit_id' in st.session_state:
@@ -823,6 +826,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
