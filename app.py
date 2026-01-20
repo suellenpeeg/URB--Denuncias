@@ -677,6 +677,9 @@ elif page == "Histórico / Editar":
                 if mask is not None:
                     df_filtrado = df_filtrado[mask]
 
+st.warning(f"DEBUG: registros após filtro = {len(df_filtrado)}")
+
+
 # --- LÓGICA DE EDIÇÃO (APARECE NO TOPO SE CLICAR NO LÁPIS) ---
 if 'edit_id' in st.session_state:
     st.markdown("---")
@@ -826,6 +829,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
