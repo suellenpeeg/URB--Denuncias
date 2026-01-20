@@ -618,6 +618,17 @@ elif page == "Histórico / Editar":
     else:
         # --- SEÇÃO DE FILTROS ---
         with st.expander("🔍 Filtros de Busca", expanded=False):
+             c0, c1, c2, c3, c4 = st.columns([2,1,1,1,1])
+
+             f_busca = c0.text_input("🔎 Busca geral",placeholder="Pesquisar no título ou descrição da denúncia...")
+
+             f_bairro = c1.text_input("Bairro")
+             f_zona = c2.selectbox("Zona", ["Todos"] + OPCOES_ZONA)
+             f_status = c3.selectbox("Status", ["Todos"] + OPCOES_STATUS)
+             f_id = c4.text_input("Nº da OS (Ex: 0001)")
+
+        
+        with st.expander("🔍 Filtros de Busca", expanded=False):
             c1, c2, c3, c4 = st.columns(4)
             f_bairro = c1.text_input("Bairro")
             f_zona = c2.selectbox("Zona", ["Todos"] + OPCOES_ZONA)
@@ -634,6 +645,11 @@ elif page == "Histórico / Editar":
             df_filtrado = df_filtrado[df_filtrado['status'] == f_status]
         if f_id:
             df_filtrado = df_filtrado[df_filtrado['external_id'].str.contains(f_id, na=False)]
+        if f_busca:
+           termo = f_busca.strip()
+
+           df_filtrado = df_filtrado[
+              df_filtrado['titulo'].str.contains(termo, case=False, na=False) |df_filtrado['descricao'].str.contains(termo, case=False, na=False)]
 
         # --- LÓGICA DE EDIÇÃO (APARECE NO TOPO SE CLICAR NO LÁPIS) ---
         if 'edit_id' in st.session_state:
@@ -801,6 +817,7 @@ elif page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
