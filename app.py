@@ -776,11 +776,15 @@ if 'edit_id' in st.session_state:
                 st.rerun()
 
     
-st.write(f"Exibindo **{len(df)}** resultados")
+        # ===============================
+        # LISTAGEM
+        # ===============================
+        st.write(f"Exibindo **{len(df_filtrado)}** resultados")
 
-for _, row in df.sort_values(by='id', ascending=False).iterrows():
-    with st.container(border=True):
-        col1, col2, col3, col4 = st.columns([1, 3, 1.5, 1])
+        for _, row in df_filtrado.sort_values(by='id', ascending=False).iterrows():
+            with st.container(border=True):
+                col1, col2, col3, col4 = st.columns([1, 3, 1.5, 1])
+
 
         col1.markdown(f"**{row['external_id']}**\n\n{row['created_at'][:10]}")
 
@@ -922,6 +926,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
