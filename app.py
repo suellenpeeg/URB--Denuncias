@@ -755,12 +755,9 @@ st.write(f"Exibindo **{len(df_filtrado)}** resultados")
 
 for _, row in df_filtrado.sort_values(by='id', ascending=False).iterrows():
     with st.container(border=True):
-
         c1, c2, c3, c4 = st.columns([1, 3, 1.5, 1])
 
-        c1.markdown(
-            f"**{row['external_id']}**\n\n{row['created_at'][:10]}"
-        )
+        c1.markdown(f"**{row['external_id']}**\n\n{row['created_at'][:10]}")
 
         c2.markdown(
             f"📍 **{row['bairro']}** - {row['rua']}, {row['numero']}\n\n"
@@ -775,7 +772,6 @@ for _, row in df_filtrado.sort_values(by='id', ascending=False).iterrows():
         )
         c3.markdown(f":{cor}[**{row['status']}**]")
 
-        # ===== BOTÕES =====
         b1, b2, b3, b4 = c4.columns(4)
 
         # 👁️ Visualizar
@@ -808,10 +804,9 @@ for _, row in df_filtrado.sort_values(by='id', ascending=False).iterrows():
             else:
                 st.error("Apenas administradores podem excluir registros.")
 
-        # ===== VISUALIZAÇÃO COMPLETA =====
+        # 🔎 VISUALIZAÇÃO COMPLETA
         if st.session_state.get("view_id") == row["id"]:
             with st.expander("📋 Detalhes completos", expanded=True):
-
                 st.markdown(f"""
 **Origem:** {row['origem']}  
 **Zona:** {row['zona']}  
@@ -902,5 +897,6 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
