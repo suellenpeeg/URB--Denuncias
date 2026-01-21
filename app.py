@@ -676,14 +676,11 @@ elif page == "Histórico / Editar":
                 if mask is not None:
                     df_filtrado = df_filtrado[mask]
 
-df_filt = df_filtrado.copy()
-
-# --- LÓGICA DE EDIÇÃO (APARECE NO TOPO SE CLICAR NO LÁPIS) ---
+# --- LÓGICA DE EDIÇÃO ---
 if 'edit_id' in st.session_state:
     st.markdown("---")
     st.subheader(f"📝 Editando OS: {st.session_state.edit_id}")
 
-    # Inicializa trava de edição
     if 'salvando_edicao' not in st.session_state:
         st.session_state.salvando_edicao = False
 
@@ -692,16 +689,17 @@ if 'edit_id' in st.session_state:
         idx = idx_list[0]
         row_data = df.iloc[idx]
 
-        st.markdown("### 📝 Observações Administrativas / de Campo")
-
-        nova_obs = st.text_area(
-            "Uso interno da fiscalização",
-            value=str(row_data.get('observacoes', '')),
-            height=160,
-            placeholder="Preencher após vistoria em campo..."
-        )
-
         with st.form("form_edicao"):
+            st.markdown("### 🗒️ Observações Administrativas / de Campo")
+
+            nova_obs = st.text_area(
+                "Uso interno da fiscalização",
+                value=str(row_data.get('observacoes', '')),
+                height=160,
+                placeholder="Preencher após vistoria em campo..."
+            )
+
+            st.markdown("---")
             col_e1, col_e2, col_e3 = st.columns(3)
 
             def get_index(lista, valor):
@@ -726,49 +724,34 @@ if 'edit_id' in st.session_state:
             )
 
             col_e4, col_e5 = st.columns([2, 1])
-            nova_rua = col_e4.text_input(
-                "Rua",
-                value=str(row_data.get('rua', ''))
-            )
+            nova_rua = col_e4.text_input("Rua", value=str(row_data.get('rua', '')))
             nova_ref = col_e5.text_input(
                 "Ponto de Referência",
                 value=str(row_data.get('ponto_referencia', ''))
             )
 
             col_lat, col_lon, col_num = st.columns(3)
-            nova_lat = col_lat.text_input(
-                "Latitude",
-                value=str(row_data.get('latitude', ''))
-            )
-            nova_lon = col_lon.text_input(
-                "Longitude",
-                value=str(row_data.get('longitude', ''))
-            )
-            novo_num = col_num.text_input(
-                "Número",
-                value=str(row_data.get('numero', ''))
-            )
+            nova_lat = col_lat.text_input("Latitude", value=str(row_data.get('latitude', '')))
+            nova_lon = col_lon.text_input("Longitude", value=str(row_data.get('longitude', '')))
+            novo_num = col_num.text_input("Número", value=str(row_data.get('numero', '')))
 
             nova_desc = st.text_area(
-                "Descrição",
+                "Descrição da Ocorrência",
                 value=str(row_data.get('descricao', '')),
                 height=150
             )
 
-            # Link dinâmico
             link_edit = ""
             if nova_lat and nova_lon:
                 link_edit = f"https://www.google.com/maps?q={nova_lat},{nova_lon}"
-                st.caption(f"Novo Link: {link_edit}")
+                st.caption(f"🔗 {link_edit}")
 
-            c_btn1, c_btn2 = st.columns([1, 5])
+            c_btn1, c_btn2 = st.columns([1, 4])
 
-            if c_btn1.form_submit_button(
-                "💾 Atualizar",
-                disabled=st.session_state.salvando_edicao
-            ):
+            if c_btn1.form_submit_button("💾 Atualizar", disabled=st.session_state.salvando_edicao):
                 st.session_state.salvando_edicao = True
 
+                df.at[idx, 'observacoes'] = nova_obs
                 df.at[idx, 'status'] = novo_status
                 df.at[idx, 'zona'] = nova_zona
                 df.at[idx, 'origem'] = nova_origem
@@ -779,7 +762,6 @@ if 'edit_id' in st.session_state:
                 df.at[idx, 'ponto_referencia'] = nova_ref
                 df.at[idx, 'descricao'] = nova_desc
                 df.at[idx, 'link_maps'] = link_edit
-                df.at[idx, 'observacoes'] = nova_obs
 
                 update_full_sheet(SHEET_DENUNCIAS, df)
                 st.success("Atualizado com sucesso!")
@@ -793,25 +775,20 @@ if 'edit_id' in st.session_state:
                 del st.session_state.edit_id
                 st.rerun()
 
-    st.markdown("---")
     
-# --- LISTAGEM) ---
 st.write(f"Exibindo **{len(df_filt)}** resultados")
 
 for _, row in df_filt.sort_values(by='id', ascending=False).iterrows():
     with st.container(border=True):
         col1, col2, col3, col4 = st.columns([1, 3, 1.5, 1])
 
-        col1.markdown(
-            f"**{row['external_id']}**\n\n{row['created_at'][:10]}"
-        )
+        col1.markdown(f"**{row['external_id']}**\n\n{row['created_at'][:10]}")
 
         col2.markdown(
             f"📍 **{row['bairro']}** - {row['rua']}, {row['numero']}\n\n"
             f"📝 _{row['descricao'][:100]}..._"
         )
 
-        # Badge de Status
         cor = (
             "orange" if row['status'] == "Pendente"
             else "blue" if "Monitoramento" in row['status']
@@ -821,26 +798,23 @@ for _, row in df_filt.sort_values(by='id', ascending=False).iterrows():
         col3.markdown(f":{cor}[**{row['status']}**]")
         col3.caption(f"Fiscal: {row['quem_recebeu'].split(' - ')[0]}")
 
-        # Botões de Ação
-        b1, b2, b3 = col4.columns(3)
+        b1, b2, b3, b4 = col4.columns(4)
 
-        # Editar
-        if b1.button("✏️", key=f"ed_{row['id']}"):
+        # 👁️ Visualizar
+        if b1.button("👁️", key=f"view_{row['id']}"):
+            st.session_state.view_id = row['id']
+
+        # ✏️ Editar
+        if b2.button("✏️", key=f"ed_{row['id']}"):
             st.session_state.edit_id = row['id']
             st.rerun()
 
-        # PDF
+        # 📄 PDF
         pdf_b = gerar_pdf(row)
-        b2.download_button(
-            "📄",
-            pdf_b,
-            f"OS_{row['id']}.pdf",
-            "application/pdf",
-            key=f"pdf_{row['id']}"
-        )
+        b3.download_button("📄", pdf_b, f"OS_{row['id']}.pdf", "application/pdf")
 
-        # Excluir
-        if b3.button("🗑️", key=f"del_{row['id']}"):
+        # 🗑️ Excluir
+        if b4.button("🗑️", key=f"del_{row['id']}"):
             if user_info['role'] == 'admin':
                 df = df[df['id'] != row['id']]
                 update_full_sheet(SHEET_DENUNCIAS, df)
@@ -849,6 +823,21 @@ for _, row in df_filt.sort_values(by='id', ascending=False).iterrows():
                 st.rerun()
             else:
                 st.error("Apenas admins excluem.")
+
+        # 🔎 VISUALIZAÇÃO COMPLETA
+        if st.session_state.get("view_id") == row["id"]:
+            with st.expander("📋 Detalhes completos", expanded=True):
+                st.markdown(f"""**Origem:** {row['origem']}  **Tipo:** {row['tipo']}  **Nº Encaminhamento:** {row.get('num_encaminhamento', '') or '—'} **Endereço:** {row['rua']}, {row['numero']} – {row['bairro']} ({row['zona']})**Descrição completa:**  {row['descricao']}""")
+
+                obs = row.get("observacoes", "")
+                if obs and str(obs).strip():
+                    st.markdown("---")
+                    st.markdown("### 🗒️ Observações Administrativas / de Campo")
+                    st.markdown(obs)
+
+                if row.get("link_maps"):
+                    st.markdown("---")
+                    st.link_button("📍 Abrir no Google Maps", row["link_maps"])
 
 # ============================================================
 # PÁGINA 4: REINCIDÊNCIAS
@@ -881,6 +870,7 @@ if page == "Reincidências":
                         st.success("Feito!")
                         time.sleep(2)
                         st.rerun()
+
 
 
 
