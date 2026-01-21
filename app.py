@@ -827,7 +827,16 @@ for _, row in df.sort_values(by='id', ascending=False).iterrows():
         # 🔎 VISUALIZAÇÃO COMPLETA
         if st.session_state.get("view_id") == row["id"]:
             with st.expander("📋 Detalhes completos", expanded=True):
-                st.markdown(f"""**Origem:** {row['origem']}  **Tipo:** {row['tipo']}  **Nº Encaminhamento:** {row.get('num_encaminhamento', '') or '—'} **Endereço:** {row['rua']}, {row['numero']} – {row['bairro']} ({row['zona']})**Descrição completa:**  {row['descricao']}""")
+                st.markdown(f"""
+**Origem:** {row['origem']}  
+**Tipo:** {row['tipo']}  
+**Nº Encaminhamento:** {row.get('num_encaminhamento', '') or '—'}
+
+**Endereço:** {row['rua']}, {row['numero']} – {row['bairro']} ({row['zona']})
+
+**Descrição completa:**  
+{row['descricao']}
+""")
 
                 obs = row.get("observacoes", "")
                 if obs and str(obs).strip():
@@ -840,36 +849,81 @@ for _, row in df.sort_values(by='id', ascending=False).iterrows():
                     st.link_button("📍 Abrir no Google Maps", row["link_maps"])
 
 # ============================================================
-# PÁGINA 4: REINCIDÊNCIAS
+# PÁGINA: REINCIDÊNCIAS
 # ============================================================
 if page == "Reincidências":
     st.title("🔄 Reincidência")
+
     df_den = load_data(SHEET_DENUNCIAS)
-    if not df_den.empty:
-        df_den['label'] = df_den['external_id'].astype(str) + " - " + df_den['rua'].astype(str)
-        escolha = st.selectbox("Denúncia Original", df_den['label'].tolist())
+
+    if df_den.empty:
+        st.info("Nenhuma denúncia cadastrada.")
+    else:
+        df_den['label'] = (
+            df_den['external_id'].astype(str)
+            + " - "
+            + df_den['rua'].astype(str)
+        )
+
+        escolha = st.selectbox(
+            "Denúncia Original",
+            df_den['label'].tolist()
+        )
+
         if escolha:
             real_id = escolha.split(" - ")[0]
-            row_idx = df_den.index[df_den['external_id'] == real_id].tolist()[0]
+            row_idx = df_den.index[
+                df_den['external_id'] == real_id
+            ].tolist()[0]
+
             desc_atual = df_den.at[row_idx, 'descricao']
-            with st.expander("Ver Atual"): st.text(desc_atual)
-            with st.form("reinc"):
-                desc_nova = st.text_area("Novo Relato")
+
+            with st.expander("📄 Descrição atual"):
+                st.text(desc_atual)
+
+            with st.form("form_reincidencia"):
+                desc_nova = st.text_area(
+                    "Novo Relato da Reincidência",
+                    height=150
+                )
                 origem = st.selectbox("Origem", OPCOES_ORIGEM)
-                if st.form_submit_button("Salvar"):
-                    if not desc_nova: st.error("Escreva algo.")
+
+                if st.form_submit_button("💾 Salvar Reincidência"):
+                    if not desc_nova:
+                        st.error("O relato não pode ficar vazio.")
                     else:
                         agora_br = datetime.now(FUSO_BR).strftime('%Y-%m-%d %H:%M:%S')
                         timestamp = datetime.now(FUSO_BR).strftime('%d/%m/%Y %H:%M')
-                        rec = {"external_id": real_id, "data_hora": agora_br, "origem": origem, "descricao": desc_nova, "registrado_por": user_info['name']}
+
+                        rec = {
+                            "external_id": real_id,
+                            "data_hora": agora_br,
+                            "origem": origem,
+                            "descricao": desc_nova,
+                            "registrado_por": user_info['name']
+                        }
+
                         salvar_dados_seguro(SHEET_REINCIDENCIAS, rec)
-                        texto_add = f"\n\n{'='*20}\n[REINCIDÊNCIA - {timestamp}]\nFiscal: {user_info['name']} | Origem: {origem}\n{desc_nova}"
-                        df_den.at[row_idx, 'descricao'] = str(desc_atual) + texto_add
+
+                        texto_add = (
+                            f"\n\n{'='*30}\n"
+                            f"[REINCIDÊNCIA - {timestamp}]\n"
+                            f"Fiscal: {user_info['name']} | Origem: {origem}\n"
+                            f"{desc_nova}"
+                        )
+
+                        df_den.at[row_idx, 'descricao'] = (
+                            str(desc_atual) + texto_add
+                        )
                         df_den.at[row_idx, 'status'] = 'Pendente'
+
                         update_full_sheet(SHEET_DENUNCIAS, df_den)
-                        st.success("Feito!")
-                        time.sleep(2)
+
+                        st.success("Reincidência registrada com sucesso!")
+                        time.sleep(1)
                         st.rerun()
+
+
 
 
 
