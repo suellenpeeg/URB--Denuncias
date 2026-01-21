@@ -611,13 +611,10 @@ elif page == "Histórico / Editar":
     st.title("🗂️ Gerenciamento de Ocorrências")
 
     df = load_data(SHEET_DENUNCIAS)
-
-    # 🔐 BLINDAGEM TOTAL — df_filtrado SEMPRE EXISTE
     df_filtrado = df.copy()
 
     if df.empty:
         st.info("Nenhum registro encontrado.")
-
     else:
         # ✅ SEMPRE DEFINIDO
         df_filtrado = df.copy()
@@ -901,6 +898,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
