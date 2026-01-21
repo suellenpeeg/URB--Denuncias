@@ -744,67 +744,72 @@ elif page == "Histórico / Editar":
                         del st.session_state.edit_id
                         st.rerun()
 
-        # ====================================================
-        # LISTAGEM (SEMPRE APARECE)
-        # ====================================================
-        st.markdown("---")
-        st.write(f"Exibindo **{len(df_filtrado)}** resultados")
+# ====================================================
+# LISTAGEM (SEMPRE APARECE)
+# ====================================================
+st.markdown("---")
+st.write(f"Exibindo **{len(df_filtrado)}** resultados")
 
-        for _, row in df_filtrado.sort_values(by='id', ascending=False).iterrows():
-            with st.container(border=True):
-                c1, c2, c3, c4 = st.columns([1, 3, 1.5, 1])
+for _, row in df_filtrado.sort_values(by='id', ascending=False).iterrows():
+    with st.container(border=True):
 
-                c1.markdown(f"**{row['external_id']}**\n\n{row['created_at'][:10]}")
+        c1, c2, c3, c4 = st.columns([1, 3, 1.5, 1])
 
-                c2.markdown(
-                    f"📍 **{row['bairro']}** - {row['rua']}, {row['numero']}\n\n"
-                    f"📝 _{row['descricao'][:100]}..._"
-                )
+        c1.markdown(
+            f"**{row['external_id']}**\n\n{row['created_at'][:10]}"
+        )
 
-                cor = (
-                    "orange" if row['status'] == "Pendente"
-                    else "blue" if "Monitoramento" in row['status']
-                    else "green" if row['status'] == "Concluída"
-                    else "gray"
-                )
-                c3.markdown(f":{cor}[**{row['status']}**]")
+        c2.markdown(
+            f"📍 **{row['bairro']}** - {row['rua']}, {row['numero']}\n\n"
+            f"📝 _{row['descricao'][:100]}..._"
+        )
 
-                b1, b2, b3, b4 = c4.columns(4)
+        cor = (
+            "orange" if row['status'] == "Pendente"
+            else "blue" if "Monitoramento" in row['status']
+            else "green" if row['status'] == "Concluída"
+            else "gray"
+        )
+        c3.markdown(f":{cor}[**{row['status']}**]")
 
-# 👁️ Visualizar
-if b1.button("👁️", key=f"view_{row['id']}"):
-    st.session_state.view_id = row['id']
+        # ===== BOTÕES =====
+        b1, b2, b3, b4 = c4.columns(4)
 
-# ✏️ Editar
-if b2.button("✏️", key=f"edit_{row['id']}"):
-    st.session_state.edit_id = row['id']
-    st.rerun()
+        # 👁️ Visualizar
+        if b1.button("👁️", key=f"view_{row['id']}"):
+            st.session_state.view_id = row['id']
 
-# 📄 PDF
-pdf_b = gerar_pdf(row)
-b3.download_button(
-    "📄",
-    pdf_b,
-    f"OS_{row['id']}.pdf",
-    "application/pdf",
-    key=f"pdf_{row['id']}"
-)
+        # ✏️ Editar
+        if b2.button("✏️", key=f"edit_{row['id']}"):
+            st.session_state.edit_id = row['id']
+            st.rerun()
 
-# 🗑️ Excluir (somente admin)
-if b4.button("🗑️", key=f"del_{row['id']}"):
-    if user_info['role'] == 'admin':
-        df = df[df['id'] != row['id']]
-        update_full_sheet(SHEET_DENUNCIAS, df)
-        st.toast("Registro excluído com sucesso!")
-        time.sleep(1)
-        st.rerun()
-    else:
-        st.error("Apenas administradores podem excluir registros.")
+        # 📄 PDF
+        pdf_b = gerar_pdf(row)
+        b3.download_button(
+            "📄",
+            pdf_b,
+            f"OS_{row['id']}.pdf",
+            "application/pdf",
+            key=f"pdf_{row['id']}"
+        )
 
-if st.session_state.get("view_id") == row["id"]:
-    with st.expander("📋 Detalhes completos", expanded=True):
+        # 🗑️ Excluir
+        if b4.button("🗑️", key=f"del_{row['id']}"):
+            if user_info['role'] == 'admin':
+                df = df[df['id'] != row['id']]
+                update_full_sheet(SHEET_DENUNCIAS, df)
+                st.toast("Registro excluído com sucesso!")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("Apenas administradores podem excluir registros.")
 
-        st.markdown(f"""
+        # ===== VISUALIZAÇÃO COMPLETA =====
+        if st.session_state.get("view_id") == row["id"]:
+            with st.expander("📋 Detalhes completos", expanded=True):
+
+                st.markdown(f"""
 **Origem:** {row['origem']}  
 **Zona:** {row['zona']}  
 **Endereço:** {row['rua']}, {row['numero']} – {row['bairro']}
@@ -813,11 +818,11 @@ if st.session_state.get("view_id") == row["id"]:
 {row['descricao']}
 """)
 
-        obs = row.get("observacoes", "")
-        if obs and str(obs).strip():
-            st.markdown("---")
-            st.markdown("### 🗒️ Observações Administrativas / de Campo")
-            st.markdown(obs)
+                obs = row.get("observacoes", "")
+                if obs and str(obs).strip():
+                    st.markdown("---")
+                    st.markdown("### 🗒️ Observações Administrativas / de Campo")
+                    st.markdown(obs)
 
 
 # ============================================================
@@ -894,3 +899,4 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
