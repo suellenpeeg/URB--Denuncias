@@ -769,17 +769,38 @@ elif page == "Histórico / Editar":
                 )
                 c3.markdown(f":{cor}[**{row['status']}**]")
 
-                b1, b2, b3 = c4.columns(3)
+                b1, b2, b3, b4 = c4.columns(4)
 
-                if b1.button("👁️", key=f"view_{row['id']}"):
-                    st.session_state.view_id = row['id']
+# 👁️ Visualizar
+if b1.button("👁️", key=f"view_{row['id']}"):
+    st.session_state.view_id = row['id']
 
-                if b2.button("✏️", key=f"edit_{row['id']}"):
-                    st.session_state.edit_id = row['id']
-                    st.rerun()
+# ✏️ Editar
+if b2.button("✏️", key=f"edit_{row['id']}"):
+    st.session_state.edit_id = row['id']
+    st.rerun()
 
-                pdf_b = gerar_pdf(row)
-                b3.download_button("📄", pdf_b, f"OS_{row['id']}.pdf", "application/pdf")
+# 📄 PDF
+pdf_b = gerar_pdf(row)
+b3.download_button(
+    "📄",
+    pdf_b,
+    f"OS_{row['id']}.pdf",
+    "application/pdf",
+    key=f"pdf_{row['id']}"
+)
+
+# 🗑️ Excluir (somente admin)
+if b4.button("🗑️", key=f"del_{row['id']}"):
+    if user_info['role'] == 'admin':
+        df = df[df['id'] != row['id']]
+        update_full_sheet(SHEET_DENUNCIAS, df)
+        st.toast("Registro excluído com sucesso!")
+        time.sleep(1)
+        st.rerun()
+    else:
+        st.error("Apenas administradores podem excluir registros.")
+
 
                 if st.session_state.get("view_id") == row["id"]:
                     with st.expander("📋 Detalhes completos", expanded=True):
@@ -873,6 +894,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
