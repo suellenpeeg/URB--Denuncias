@@ -813,11 +813,11 @@ if st.session_state.get("view_id") == row["id"]:
 {row['descricao']}
 """)
 
-            obs = row.get("observacoes", "")
-                if obs:
-                    st.markdown("---")
-                    st.markdown("### 🗒️ Observações Administrativas / de Campo")
-                    st.markdown(obs)
+    obs = row.get("observacoes", "")
+        if obs:
+            st.markdown("---")
+            st.markdown("### 🗒️ Observações Administrativas / de Campo")
+            st.markdown(obs)
 
 
 # ============================================================
@@ -894,6 +894,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
