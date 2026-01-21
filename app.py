@@ -751,8 +751,9 @@ elif page == "Histórico / Editar":
 # ====================================================
 # LISTAGEM (SEMPRE APARECE)
 # ====================================================
-st.markdown("---")
-st.write(f"Exibindo **{len(df_filtrado)}** resultados")
+if page == "Histórico / Editar":
+   st.markdown("---")
+    st.write(f"Exibindo **{len(df_filtrado)}** resultados")
 
 for _, row in df_filtrado.sort_values(by='id', ascending=False).iterrows():
     with st.container(border=True):
@@ -898,6 +899,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
