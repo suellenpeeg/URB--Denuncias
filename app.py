@@ -615,6 +615,9 @@ elif page == "Histórico / Editar":
     if df.empty:
         st.info("Nenhum registro encontrado.")
     else:
+        # ✅ SEMPRE DEFINIDO
+        df_filtrado = df.copy()
+
         # ===============================
         # FILTROS
         # ===============================
@@ -899,4 +902,5 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
