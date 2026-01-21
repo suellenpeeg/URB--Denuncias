@@ -801,10 +801,10 @@ if b4.button("🗑️", key=f"del_{row['id']}"):
     else:
         st.error("Apenas administradores podem excluir registros.")
 
-
 if st.session_state.get("view_id") == row["id"]:
     with st.expander("📋 Detalhes completos", expanded=True):
-           st.markdown(f"""
+
+        st.markdown(f"""
 **Origem:** {row['origem']}  
 **Zona:** {row['zona']}  
 **Endereço:** {row['rua']}, {row['numero']} – {row['bairro']}
@@ -813,8 +813,8 @@ if st.session_state.get("view_id") == row["id"]:
 {row['descricao']}
 """)
 
-    obs = row.get("observacoes", "")
-        if obs:
+        obs = row.get("observacoes", "")
+        if obs and str(obs).strip():
             st.markdown("---")
             st.markdown("### 🗒️ Observações Administrativas / de Campo")
             st.markdown(obs)
@@ -894,117 +894,3 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
