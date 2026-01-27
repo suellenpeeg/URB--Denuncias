@@ -311,82 +311,82 @@ def gerar_pdf(dados):
     except Exception as e:
         return str(e)
 # ============================================================
-# FUNÇÕES DE BANCO DE DADOS
+# FUNÇÕES DE BANCO DE DADOS (BLINDADAS)
 # ============================================================
+
+def get_worksheet(sheet_name):
+    gc, key = SheetsClient.get_client()
     sh = gc.open_by_key(key)
+
     try:
         ws = sh.worksheet(sheet_name)
     except WorksheetNotFound:
-        ws = sh.add_worksheet(sheet_name, rows=100, cols=20)
+        ws = sh.add_worksheet(title=sheet_name, rows=1000, cols=50)
+
         if sheet_name == SHEET_DENUNCIAS:
             ws.append_row(DENUNCIA_SCHEMA)
         elif sheet_name == SHEET_USUARIOS:
             ws.append_row(["username", "password", "name", "role"])
         elif sheet_name == SHEET_REINCIDENCIAS:
             ws.append_row(REINCIDENCIA_SCHEMA)
+
     return ws
+
 
 def load_data(sheet_name):
     ws = get_worksheet(sheet_name)
-    if not ws: return pd.DataFrame()
     data = ws.get_all_records()
     df = pd.DataFrame(data)
-    return df.fillna('')
+    return df.fillna("")
+
 
 def salvar_dados_seguro(sheet_name, row_dict):
     ws = get_worksheet(sheet_name)
     headers = ws.row_values(1)
+
     if not headers:
-        if sheet_name == SHEET_DENUNCIAS: headers = DENUNCIA_SCHEMA
-        elif sheet_name == SHEET_REINCIDENCIAS: headers = REINCIDENCIA_SCHEMA
+        if sheet_name == SHEET_DENUNCIAS:
+            headers = DENUNCIA_SCHEMA
+        elif sheet_name == SHEET_REINCIDENCIAS:
+            headers = REINCIDENCIA_SCHEMA
         ws.append_row(headers)
-    
-    values = []
-    for h in headers:
-        val = row_dict.get(h, '') 
-        values.append(str(val))
+
+    values = [str(row_dict.get(h, "")) for h in headers]
     ws.append_row(values)
+
 
 def update_full_sheet(sheet_name, df):
     try:
-        sh = get_spreadsheet()
-        ws = sh.worksheet(sheet_name)
-        
-        # 1. Garante que o DataFrame não está vazio de colunas
+        ws = get_worksheet(sheet_name)
+
+        # Garante DataFrame seguro
         if df.empty and sheet_name == SHEET_DENUNCIAS:
-            # Se estiver vazio, mantém pelo menos o cabeçalho original
             df_clean = pd.DataFrame(columns=DENUNCIA_SCHEMA)
         else:
             df_clean = df.fillna("").astype(str)
 
-        # 2. Prepara os dados (Cabeçalho + Valores)
-        dados_finais = [df_clean.columns.tolist()] + df_clean.values.tolist()
+        dados = [df_clean.columns.tolist()] + df_clean.values.tolist()
 
-        # 3. Atualiza tudo de uma vez sem usar .clear()
-        # O gspread permite atualizar um range começando de A1. 
-        # Isso evita o estado "vazio" entre o clear e o update.
-        ws.update("A1", dados_finais)
-        
-        # 4. Opcional: Se a planilha encolher, o gspread pode deixar "lixo" no final.
-        # Mas é mais seguro ter lixo no final do que apagar o banco todo durante o erro.
-        
+        # Atualiza tudo de uma vez (SEM clear)
+        ws.update("A1", dados)
+
     except Exception as e:
         st.error(f"Erro crítico ao salvar no Banco de Dados: {e}")
+        raise  # importante para log
 
 
 def gerar_novo_id():
     ws = get_worksheet("config")
 
-    # Garante cabeçalho
     if not ws.row_values(1):
         ws.append_row(["ultimo_id"])
         ws.append_row([0])
 
-    valor_atual = ws.acell("A1").value
+    valor_atual = ws.acell("A2").value
     ultimo_id = int(valor_atual) if valor_atual else 0
 
     novo_id = ultimo_id + 1
-    ws.update("A1", [[novo_id]])
+    ws.update("A2", [[novo_id]])
 
     return novo_id
 
@@ -933,6 +933,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
