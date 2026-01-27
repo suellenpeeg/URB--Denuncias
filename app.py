@@ -69,14 +69,6 @@ def get_worksheet(sheet_name):
 # ============================================================
 # FUNÇÕES DE BANCO DE DADOS (PROTEÇÃO CONTRA APAGAMENTO)
 # ============================================================
-def load_data(sheet_name):
-    try:
-        ws = get_worksheet(sheet_name)
-        data = ws.get_all_records()
-        return pd.DataFrame(data).fillna('')
-    except:
-        return pd.DataFrame()
-
 def update_full_sheet(sheet_name, df):
     """Atualiza a planilha sem deletar antes, evitando perda total em caso de erro."""
     try:
@@ -319,10 +311,6 @@ def gerar_pdf(dados):
 # ============================================================
 # FUNÇÕES DE BANCO DE DADOS
 # ============================================================
-def get_worksheet(sheet_name):
-    gc, key = SheetsClient.get_client()
-    if not gc: return None
-    
     sh = gc.open_by_key(key)
     try:
         ws = sh.worksheet(sheet_name)
@@ -954,6 +942,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
