@@ -11,6 +11,9 @@ from gspread.exceptions import WorksheetNotFound
 import gspread
 from fpdf import FPDF
 
+SPREADSHEET_ID = "1lb5GjBpqbbgm_gTHlITdF1MyrNPQWCedRHhZoafnUEM"
+
+
 # ============================================================
 # CONFIGURAÇÃO INICIAL E FUSO
 # ============================================================
@@ -915,6 +918,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
