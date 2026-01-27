@@ -72,12 +72,12 @@ def gerar_novo_id():
 
     # garante estrutura
     if ws.row_values(1) != ["ultimo_id"]:
-        ws.update("A1", [["ultimo_id"], [0]])
+        ws.update("A2", [["ultimo_id"], [0]])
 
-    ultimo_id = int(ws.acell("A1").value or 0)
+    ultimo_id = int(ws.acell("A2").value or 0)
 
     novo_id = ultimo_id + 1
-    ws.update("a1", novo_id)
+    ws.update("a2", novo_id)
 
     return novo_id
 
@@ -353,7 +353,7 @@ def update_full_sheet(sheet_name, df):
         dados = [df_clean.columns.tolist()] + df_clean.values.tolist()
 
         # Atualiza tudo de uma vez (SEM clear)
-        ws.update("A1", dados)
+        ws.update("A2", dados)
 
     except Exception as e:
         st.error(f"Erro crítico ao salvar no Banco de Dados: {e}")
@@ -367,11 +367,11 @@ def gerar_novo_id():
         ws.append_row(["ultimo_id"])
         ws.append_row([0])
 
-    valor_atual = ws.acell("A1").value
+    valor_atual = ws.acell("A2").value
     ultimo_id = int(valor_atual) if valor_atual else 0
 
     novo_id = ultimo_id + 1
-    ws.update("A1", [[novo_id]])
+    ws.update("A2", [[novo_id]])
 
     return novo_id
 
@@ -918,6 +918,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
