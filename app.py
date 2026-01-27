@@ -791,11 +791,11 @@ elif page == "Histórico / Editar":
                         del st.session_state.edit_id
                         st.rerun()
 
-# ====================================================
-# LISTAGEM (SEMPRE APARECE)
-# ====================================================
-for i, row in df_filtrado.sort_values(by='id', ascending=False).iterrows():
-    with st.container(border=True):
+  # ====================================================
+  # LISTAGEM (SEMPRE APARECE)
+  # ====================================================
+  for i, row in df_filtrado.sort_values(by='id', ascending=False).iterrows():
+     with st.container(border=True):
         c1, c2, c3, c4 = st.columns([1, 3, 1.5, 1])
 
         c1.markdown(f"**{row['external_id']}**\n\n{row['created_at'][:10]}")
@@ -934,6 +934,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
