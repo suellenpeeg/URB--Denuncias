@@ -832,14 +832,14 @@ for i, row in df_filtrado.sort_values(by='id', ascending=False).iterrows():
         )
 
         if b4.button("🗑️", key=f"del_{row['id']}_{i}")
-                if user_info['role'] == 'admin':
-                    df = df[df['id'] != row['id']]
-                    update_full_sheet(SHEET_DENUNCIAS, df)
-                    st.toast("Registro excluído com sucesso!")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error("Apenas administradores podem excluir registros.")
+            if user_info['role'] == 'admin':
+                df = df[df['id'] != row['id']]
+                update_full_sheet(SHEET_DENUNCIAS, df)
+                st.toast("Registro excluído com sucesso!")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("Apenas administradores podem excluir registros.")
 
             # 🔎 VISUALIZAÇÃO COMPLETA
             if st.session_state.get("view_id") == row["id"]:
@@ -934,6 +934,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
