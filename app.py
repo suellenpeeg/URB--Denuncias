@@ -67,20 +67,19 @@ def update_full_sheet(sheet_name, df):
     ws.clear()
     ws.update([df.columns.tolist()] + df.astype(str).values.tolist())
 
-def gerar_ids_seguros():
-    """Gera ID Único para o sistema e ID Sequencial para a prefeitura."""
-    id_interno = str(uuid.uuid4())[:8]
-    df = load_data(SHEET_DENUNCIAS)
-    ano_atual = datetime.now().year
-    if df.empty or 'external_id' not in df.columns:
-        proximo_num = 1
-    else:
-        try:
-            nums = df['external_id'].str.split('/').str[0].astype(int)
-            proximo_num = nums.max() + 1
-        except:
-            proximo_num = len(df) + 1
-    return id_interno, f"{proximo_num:04d}/{ano_atual}"
+def gerar_novo_id():
+    ws = get_worksheet("config")
+
+    # garante estrutura
+    if ws.row_values(1) != ["ultimo_id"]:
+        ws.update("A1", [["ultimo_id"], [0]])
+
+    ultimo_id = int(ws.acell("A2").value or 0)
+
+    novo_id = ultimo_id + 1
+    ws.update("A2", novo_id)
+
+    return novo_id
 
 # ============================================================
 # FUNÇÃO DE SUPORTE (DEVE VIR ANTES DE GERAR_PDF)
@@ -919,6 +918,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
