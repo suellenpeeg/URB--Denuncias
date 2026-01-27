@@ -14,6 +14,15 @@ from fpdf import FPDF
 # ============================================================
 # CONFIGURAÇÃO INICIAL E FUSO
 # ============================================================
+def get_spreadsheet():
+    creds = service_account.Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    )
+    gc = gspread.authorize(creds)
+    return gc.open_by_key(SPREADSHEET_ID)
+
+
 st.set_page_config(page_title="URB Fiscalização", layout="wide")
 FUSO_BR = pytz.timezone('America/Recife')
 
@@ -905,6 +914,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
