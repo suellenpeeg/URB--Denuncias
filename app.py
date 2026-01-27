@@ -831,7 +831,7 @@ for i, row in df_filtrado.sort_values(by='id', ascending=False).iterrows():
             key=f"pdf_{row['id']}_{i}"
         )
 
-        if b4.button("🗑️", key=f"del_{row['id']}_{i}")
+        if b4.button("🗑️", key=f"del_{row['id']}_{i}"):
             if user_info['role'] == 'admin':
                 df = df[df['id'] != row['id']]
                 update_full_sheet(SHEET_DENUNCIAS, df)
@@ -934,6 +934,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
