@@ -50,7 +50,7 @@ class SheetsClient:
         )
 
         gc = gspread.authorize(creds)
-        key = st.secrets["SPREADSHEET_KEY"]
+        key = st.secrets["gcp_service_account"]["spreadsheet_key"]
 
         return gc, key
 
@@ -921,6 +921,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
