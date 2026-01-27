@@ -794,52 +794,44 @@ elif page == "Histórico / Editar":
 # ====================================================
 # LISTAGEM (SEMPRE APARECE)
 # ====================================================
-if page == "Histórico / Editar":
-    st.markdown("---")
-    st.write(f"Exibindo **{len(df_filtrado)}** resultados")
+for i, row in df_filtrado.sort_values(by='id', ascending=False).iterrows():
+    with st.container(border=True):
+        c1, c2, c3, c4 = st.columns([1, 3, 1.5, 1])
 
-    for _, row in df_filtrado.sort_values(by='id', ascending=False).iterrows():
-        with st.container(border=True):
-            c1, c2, c3, c4 = st.columns([1, 3, 1.5, 1])
+        c1.markdown(f"**{row['external_id']}**\n\n{row['created_at'][:10]}")
 
-            c1.markdown(f"**{row['external_id']}**\n\n{row['created_at'][:10]}")
+        c2.markdown(
+            f"📍 **{row['bairro']}** - {row['rua']}, {row['numero']}\n\n"
+            f"📝 _{row['descricao'][:100]}..._"
+        )
 
-            c2.markdown(
-                f"📍 **{row['bairro']}** - {row['rua']}, {row['numero']}\n\n"
-                f"📝 _{row['descricao'][:100]}..._"
-            )
+        cor = (
+            "orange" if row['status'] == "Pendente"
+            else "blue" if "Monitoramento" in row['status']
+            else "green" if row['status'] == "Concluída"
+            else "gray"
+        )
+        c3.markdown(f":{cor}[**{row['status']}**]")
 
-            cor = (
-                "orange" if row['status'] == "Pendente"
-                else "blue" if "Monitoramento" in row['status']
-                else "green" if row['status'] == "Concluída"
-                else "gray"
-            )
-            c3.markdown(f":{cor}[**{row['status']}**]")
+        b1, b2, b3, b4 = c4.columns(4)
 
-            b1, b2, b3, b4 = c4.columns(4)
+        if b1.button("👁️", key=f"view_{row['id']}_{i}"):
+            st.session_state.view_id = row['id']
 
-            # 👁️ Visualizar
-            if b1.button("👁️", key=f"view_{row['id']}"):
-                st.session_state.view_id = row['id']
+        if b2.button("✏️", key=f"edit_{row['id']}_{i}"):
+            st.session_state.edit_id = row['id']
+            st.rerun()
 
-            # ✏️ Editar
-            if b2.button("✏️", key=f"edit_{row['id']}"):
-                st.session_state.edit_id = row['id']
-                st.rerun()
+        pdf_b = gerar_pdf(row)
+        b3.download_button(
+            "📄",
+            pdf_b,
+            f"OS_{row['id']}.pdf",
+            "application/pdf",
+            key=f"pdf_{row['id']}_{i}"
+        )
 
-            # 📄 PDF
-            pdf_b = gerar_pdf(row)
-            b3.download_button(
-                "📄",
-                pdf_b,
-                f"OS_{row['id']}.pdf",
-                "application/pdf",
-                key=f"pdf_{row['id']}"
-            )
-
-            # 🗑️ Excluir
-            if b4.button("🗑️", key=f"del_{row['id']}"):
+        if b4.button("🗑️", key=f"del_{row['id']}_{i}")
                 if user_info['role'] == 'admin':
                     df = df[df['id'] != row['id']]
                     update_full_sheet(SHEET_DENUNCIAS, df)
@@ -942,6 +934,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
