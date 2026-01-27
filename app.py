@@ -641,6 +641,17 @@ elif page == "Histórico / Editar":
     st.title("🗂️ Gerenciamento de Ocorrências")
 
     df = load_data(SHEET_DENUNCIAS)
+
+# 🔒 BLINDAGEM DO ID
+    df["id"] = (
+        df["id"]
+        .astype(str)
+        .str.replace("'", "", regex=False)
+        .str.strip()
+    )
+
+    df["id"] = pd.to_numeric(df["id"], errors="coerce")
+
     df_filtrado = df.copy()
 
     if df.empty:
@@ -918,6 +929,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
