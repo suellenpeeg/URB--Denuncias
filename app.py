@@ -11,8 +11,12 @@ from gspread.exceptions import WorksheetNotFound
 import gspread
 from fpdf import FPDF
 
-st.write("Secrets visíveis:", list(st.secrets.keys()))
+st.write(
+    "Keys dentro do gcp_service_account:",
+    list(st.secrets["gcp_service_account"].keys())
+)
 st.stop()
+
 # ============================================================
 # CONFIGURAÇÃO INICIAL
 # ============================================================
@@ -921,6 +925,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
