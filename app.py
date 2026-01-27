@@ -324,9 +324,22 @@ def salvar_dados_seguro(sheet_name, row_dict):
     ws.append_row(values)
 
 def update_full_sheet(sheet_name, df):
-    ws = get_worksheet(sheet_name)
+    ws = sh.worksheet(sheet_name)
+
+    df_clean = df.copy()
+
+    # 🔒 Converte datas para string
+    for col in df_clean.columns:
+        if "data" in col.lower() or "created" in col.lower():
+            df_clean[col] = df_clean[col].astype(str)
+
+    # 🔒 Remove NaN, None, NaT
+    df_clean = df_clean.fillna("")
+
+    # 🔒 Converte tudo para string (JSON safe)
+    df_clean = df_clean.astype(str)
+
     ws.clear()
-    df_clean = df.fillna('')
     ws.update([df_clean.columns.tolist()] + df_clean.values.tolist())
 
 def gerar_novo_id():
@@ -899,6 +912,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
