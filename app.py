@@ -40,31 +40,17 @@ DENUNCIA_SCHEMA = [
 # CONEXÃO GOOGLE SHEETS
 # ============================================================
 class SheetsClient:
-    _gc = None
-    @classmethod
-    def get_client(cls):
-        if cls._gc is None:
-            try:
-                info = dict(st.secrets["gcp_service_account"])
-                if "private_key" in info:
-                    info["private_key"] = info["private_key"].replace("\\n", "\n")
-                creds = service_account.Credentials.from_service_account_info(
-                    info, scopes=["https://www.googleapis.com/auth/spreadsheets"]
-                )
-                cls._gc = gspread.authorize(creds)
-            except Exception as e:
-                st.error(f"Erro de conexão: {e}")
-        return cls._gc
+    @staticmethod
+    def get_client():
+        creds = service_account.Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"],
+            scopes=["https://www.googleapis.com/auth/spreadsheets"]
+        )
 
-def get_worksheet(sheet_name):
-    gc = SheetsClient.get_client()
-    sh = gc.open_by_key(SPREADSHEET_ID)
-    try:
-        return sh.worksheet(sheet_name)
-    except WorksheetNotFound:
-        ws = sh.add_worksheet(sheet_name, rows=1000, cols=20)
-        if sheet_name == SHEET_DENUNCIAS: ws.append_row(DENUNCIA_SCHEMA)
-        return ws
+        gc = gspread.authorize(creds)
+        key = st.secrets["SPREADSHEET_KEY"]
+
+        return gc, key
 
 # ============================================================
 # FUNÇÕES DE BANCO DE DADOS (PROTEÇÃO CONTRA APAGAMENTO)
@@ -933,6 +919,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
