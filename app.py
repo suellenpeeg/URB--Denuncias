@@ -70,14 +70,16 @@ def get_worksheet(sheet_name):
 # FUNÇÕES DE BANCO DE DADOS (PROTEÇÃO CONTRA APAGAMENTO)
 # ============================================================
 def update_full_sheet(sheet_name, df):
-    """Atualiza a planilha sem deletar antes, evitando perda total em caso de erro."""
+    gc, key = SheetsClient.get_client()
+    sh = gc.open_by_key(key)
+
     try:
-        ws = get_worksheet(sheet_name)
-        df_clean = df.fillna("").astype(str)
-        valores = [df_clean.columns.tolist()] + df_clean.values.tolist()
-        ws.update("A1", valores)
-    except Exception as e:
-        st.error(f"Erro ao salvar: {e}")
+        ws = sh.worksheet(sheet_name)
+    except WorksheetNotFound:
+        ws = sh.add_worksheet(title=sheet_name, rows=1000, cols=50)
+
+    ws.clear()
+    ws.update([df.columns.tolist()] + df.astype(str).values.tolist())
 
 def gerar_ids_seguros():
     """Gera ID Único para o sistema e ID Sequencial para a prefeitura."""
@@ -931,6 +933,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
