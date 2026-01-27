@@ -11,21 +11,10 @@ from gspread.exceptions import WorksheetNotFound
 import gspread
 from fpdf import FPDF
 
+# ============================================================
+# CONFIGURAÇÃO INICIAL
+# ============================================================
 SPREADSHEET_ID = "1lb5GjBpqbbgm_gTHlITdF1MyrNPQWCedRHhZoafnUEM"
-
-
-# ============================================================
-# CONFIGURAÇÃO INICIAL E FUSO
-# ============================================================
-def get_spreadsheet():
-    creds = service_account.Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
-        scopes=["https://www.googleapis.com/auth/spreadsheets"]
-    )
-    gc = gspread.authorize(creds)
-    return gc.open_by_key(SPREADSHEET_ID)
-
-
 st.set_page_config(page_title="URB Fiscalização", layout="wide")
 FUSO_BR = pytz.timezone('America/Recife')
 
@@ -34,22 +23,17 @@ SHEET_DENUNCIAS = "denuncias_registro"
 SHEET_REINCIDENCIAS = "reincidencias"
 SHEET_USUARIOS = "usuarios"
 
-# Listas
+# Opções de Seleção
 OPCOES_STATUS = ['Pendente', 'Em Monitoramento', 'Concluída', 'Arquivada']
 OPCOES_ORIGEM = ['Pessoalmente', 'Telefone', 'Whatsapp', 'Ministério Publico', 'Administração/Gerência', 'Ouvidoria', 'Disk Denuncia']
 OPCOES_TIPO = ['Urbano', 'Ambiental', 'Urbana e Ambiental', 'Ação Noturna']
 OPCOES_ZONA = ['NORTE', 'SUL', 'LESTE', 'OESTE', 'CENTRO', 'ZONA RURAL', '1° DISTRITO', '2° DISTRITO', 'DISTRITO INDUSTRIAL', '3° DISTRITO', '4° DISTRITO']
 OPCOES_FISCAIS_SELECT = ['Edvaldo Wilson Bezerra da Silva - 000.323', 'PATRICIA MIRELLY BEZERRA CAMPOS - 000.332', 'Raiany Nayara de Lima - 000.362', 'Suellen Bezerra do Nascimeto - 000.417']
 
-# SCHEMAS
 DENUNCIA_SCHEMA = [
     'id', 'external_id', 'created_at', 'origem', 'tipo', 'num_encaminhamento', 'rua', 
-    'numero', 'bairro', 'zona', 'ponto_referencia', 'latitude', 'longitude', 'link maps', 
+    'numero', 'bairro', 'zona', 'ponto_referencia', 'latitude', 'longitude', 'link_maps', 
     'descricao', 'observacoes', 'quem_recebeu', 'status', 'acao_noturna'
-]
-
-REINCIDENCIA_SCHEMA = [
-    'external_id', 'data_hora', 'origem', 'descricao', 'registrado_por'
 ]
 
 # ============================================================
@@ -57,28 +41,66 @@ REINCIDENCIA_SCHEMA = [
 # ============================================================
 class SheetsClient:
     _gc = None
-    _spreadsheet_key = None
-
     @classmethod
     def get_client(cls):
         if cls._gc is None:
             try:
-                secrets = st.secrets["gcp_service_account"]
-                cls._spreadsheet_key = secrets["spreadsheet_key"]
-                
-                info = dict(secrets)
+                info = dict(st.secrets["gcp_service_account"])
                 if "private_key" in info:
                     info["private_key"] = info["private_key"].replace("\\n", "\n")
-
                 creds = service_account.Credentials.from_service_account_info(
-                    info,
-                    scopes=["https://www.googleapis.com/auth/spreadsheets"]
+                    info, scopes=["https://www.googleapis.com/auth/spreadsheets"]
                 )
                 cls._gc = gspread.authorize(creds)
             except Exception as e:
-                st.error(f"Erro no Login do Google Sheets: {e}")
-                return None, None
-        return cls._gc, cls._spreadsheet_key
+                st.error(f"Erro de conexão: {e}")
+        return cls._gc
+
+def get_worksheet(sheet_name):
+    gc = SheetsClient.get_client()
+    sh = gc.open_by_key(SPREADSHEET_ID)
+    try:
+        return sh.worksheet(sheet_name)
+    except WorksheetNotFound:
+        ws = sh.add_worksheet(sheet_name, rows=1000, cols=20)
+        if sheet_name == SHEET_DENUNCIAS: ws.append_row(DENUNCIA_SCHEMA)
+        return ws
+
+# ============================================================
+# FUNÇÕES DE BANCO DE DADOS (PROTEÇÃO CONTRA APAGAMENTO)
+# ============================================================
+def load_data(sheet_name):
+    try:
+        ws = get_worksheet(sheet_name)
+        data = ws.get_all_records()
+        return pd.DataFrame(data).fillna('')
+    except:
+        return pd.DataFrame()
+
+def update_full_sheet(sheet_name, df):
+    """Atualiza a planilha sem deletar antes, evitando perda total em caso de erro."""
+    try:
+        ws = get_worksheet(sheet_name)
+        df_clean = df.fillna("").astype(str)
+        valores = [df_clean.columns.tolist()] + df_clean.values.tolist()
+        ws.update("A1", valores)
+    except Exception as e:
+        st.error(f"Erro ao salvar: {e}")
+
+def gerar_ids_seguros():
+    """Gera ID Único para o sistema e ID Sequencial para a prefeitura."""
+    id_interno = str(uuid.uuid4())[:8]
+    df = load_data(SHEET_DENUNCIAS)
+    ano_atual = datetime.now().year
+    if df.empty or 'external_id' not in df.columns:
+        proximo_num = 1
+    else:
+        try:
+            nums = df['external_id'].str.split('/').str[0].astype(int)
+            proximo_num = nums.max() + 1
+        except:
+            proximo_num = len(df) + 1
+    return id_interno, f"{proximo_num:04d}/{ano_atual}"
 
 # ============================================================
 # FUNÇÃO DE SUPORTE (DEVE VIR ANTES DE GERAR_PDF)
@@ -932,6 +954,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
