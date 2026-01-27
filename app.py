@@ -324,23 +324,16 @@ def salvar_dados_seguro(sheet_name, row_dict):
     ws.append_row(values)
 
 def update_full_sheet(sheet_name, df):
+    sh = gc.open_by_key(SPREADSHEET_ID)  # 🔴 GARANTE QUE sh EXISTE
     ws = sh.worksheet(sheet_name)
 
-    df_clean = df.copy()
-
-    # 🔒 Converte datas para string
-    for col in df_clean.columns:
-        if "data" in col.lower() or "created" in col.lower():
-            df_clean[col] = df_clean[col].astype(str)
-
-    # 🔒 Remove NaN, None, NaT
-    df_clean = df_clean.fillna("")
-
-    # 🔒 Converte tudo para string (JSON safe)
-    df_clean = df_clean.astype(str)
+    df_clean = df.fillna("").astype(str)
 
     ws.clear()
-    ws.update([df_clean.columns.tolist()] + df_clean.values.tolist())
+    ws.update(
+        [df_clean.columns.tolist()] +
+        df_clean.values.tolist()
+    )
 
 def gerar_novo_id():
     ws = get_worksheet("config")
@@ -912,6 +905,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
