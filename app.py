@@ -74,7 +74,7 @@ def gerar_novo_id():
     if ws.row_values(1) != ["ultimo_id"]:
         ws.update("A1", [["ultimo_id"], [0]])
 
-    ultimo_id = int(ws.acell("A2").value or 0)
+    ultimo_id = int(ws.acell("A1").value or 0)
 
     novo_id = ultimo_id + 1
     ws.update("A2", novo_id)
@@ -918,6 +918,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
