@@ -333,7 +333,7 @@ def salvar_dados_seguro(sheet_name, row_dict):
     ws.append_row(values)
 
 def update_full_sheet(sheet_name, df):
-    sh = gc.open_by_key(SPREADSHEET_ID)  # 🔴 GARANTE QUE sh EXISTE
+    sh = get_spreadsheet()  # ✅ ÚNICA forma correta
     ws = sh.worksheet(sheet_name)
 
     df_clean = df.fillna("").astype(str)
@@ -343,6 +343,7 @@ def update_full_sheet(sheet_name, df):
         [df_clean.columns.tolist()] +
         df_clean.values.tolist()
     )
+
 
 def gerar_novo_id():
     ws = get_worksheet("config")
@@ -914,6 +915,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
