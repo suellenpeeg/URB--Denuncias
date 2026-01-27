@@ -336,16 +336,30 @@ def salvar_dados_seguro(sheet_name, row_dict):
     ws.append_row(values)
 
 def update_full_sheet(sheet_name, df):
-    sh = get_spreadsheet()  # ✅ ÚNICA forma correta
-    ws = sh.worksheet(sheet_name)
+    try:
+        sh = get_spreadsheet()
+        ws = sh.worksheet(sheet_name)
+        
+        # 1. Garante que o DataFrame não está vazio de colunas
+        if df.empty and sheet_name == SHEET_DENUNCIAS:
+            # Se estiver vazio, mantém pelo menos o cabeçalho original
+            df_clean = pd.DataFrame(columns=DENUNCIA_SCHEMA)
+        else:
+            df_clean = df.fillna("").astype(str)
 
-    df_clean = df.fillna("").astype(str)
+        # 2. Prepara os dados (Cabeçalho + Valores)
+        dados_finais = [df_clean.columns.tolist()] + df_clean.values.tolist()
 
-    ws.clear()
-    ws.update(
-        [df_clean.columns.tolist()] +
-        df_clean.values.tolist()
-    )
+        # 3. Atualiza tudo de uma vez sem usar .clear()
+        # O gspread permite atualizar um range começando de A1. 
+        # Isso evita o estado "vazio" entre o clear e o update.
+        ws.update("A1", dados_finais)
+        
+        # 4. Opcional: Se a planilha encolher, o gspread pode deixar "lixo" no final.
+        # Mas é mais seguro ter lixo no final do que apagar o banco todo durante o erro.
+        
+    except Exception as e:
+        st.error(f"Erro crítico ao salvar no Banco de Dados: {e}")
 
 
 def gerar_novo_id():
@@ -918,6 +932,7 @@ if page == "Reincidências":
                         st.success("Reincidência registrada com sucesso!")
                         time.sleep(1)
                         st.rerun()
+
 
 
 
